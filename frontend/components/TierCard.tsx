@@ -1,5 +1,7 @@
 "use client";
 
+import { formatTokenAmount } from "../lib/contract";
+
 export interface TierData {
   name: string;
   price: string;
@@ -20,11 +22,8 @@ export function TierCard({ tier, onSubscribe, disabled }: TierCardProps) {
       <div className="flex-1 space-y-2 mb-4">
         <h3 className="text-xl font-bold">{tier.name}</h3>
         <p className="text-2xl font-semibold text-hush-400">
-          {tier.price} wei
-          <span className="text-sm text-surface-500 font-normal">
-            {" "}
-            / {durationDays} {durationDays === 1 ? "day" : "days"}
-          </span>
+          {formatTokenAmount(tier.price)}
+          <span className="text-sm text-surface-500 font-normal"> cUSDT / {durationDays}d</span>
         </p>
         {tier.description && (
           <p className="text-sm text-surface-400">{tier.description}</p>
@@ -35,7 +34,7 @@ export function TierCard({ tier, onSubscribe, disabled }: TierCardProps) {
         disabled={disabled}
         className="w-full py-3 rounded-xl bg-hush-600 hover:bg-hush-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors text-sm"
       >
-        {disabled ? "Connecting..." : "Subscribe"}
+        {disabled ? "Connect wallet" : "Subscribe"}
       </button>
     </div>
   );

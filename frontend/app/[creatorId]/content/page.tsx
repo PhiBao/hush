@@ -8,6 +8,10 @@ import Link from "next/link";
 import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "../../../lib/contract";
 import { getPosts, Post } from "../../../lib/supabase";
 
+interface GatedPost extends Post {
+  gated?: boolean;
+}
+
 export default function ContentPage() {
   const { creatorId } = useParams<{ creatorId: string }>();
   const { address, isConnected } = useAccount();
@@ -45,23 +49,42 @@ export default function ContentPage() {
     query: { enabled: !!creatorAddr && !!address },
   });
 
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<GatedPost[]>([]);
+  const [previews, setPreviews] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
 
   const creatorName = (creator as [string, string, boolean])?.[0] || "this creator";
   const tierList = Array.isArray(tiers) ? tiers : [];
   const subscriberTier = subTier !== undefined ? Number(subTier) : -1;
 
+  // Load public previews (no full content).
   useEffect(() => {
     if (creatorAddr) {
       getPosts(creatorAddr).then((p) => {
-        setPosts(p);
-        setLoadingPosts(false);
+        setPreviews(p);
       });
     }
   }, [creatorAddr]);
 
-  const filteredPosts = posts.filter((p) => p.tier_index <= subscriberTier);
+  // Load gated full content via server API (onchain-verified).
+  useEffect(() => {
+    if (!creatorAddr || !isConnected) {
+      setLoadingPosts(false);
+      return;
+    }
+    setLoadingPosts(true);
+    fetch(`/api/posts/${creatorAddr}?subscriber=${address}`)
+      .then((r) => r.json())
+      .then((data: { posts: Post[]; subscribed: boolean; subscriberTier: number }) => {
+        const gated = data.posts.map((p) => ({
+          ...p,
+          gated: p.content === "" && p.tier_index > (data.subscriberTier ?? -1),
+        }));
+        setPosts(gated);
+        setLoadingPosts(false);
+      })
+      .catch(() => setLoadingPosts(false));
+  }, [creatorAddr, isConnected, address]);
 
   function formatDate(ts: string) {
     return new Date(ts).toLocaleDateString("en-US", {
@@ -119,6 +142,9 @@ export default function ContentPage() {
                   )}
                 </p>
                 <h1 className="text-xl font-bold">{creatorName}&apos;s Content</h1>
+                <p className="text-[11px] text-surface-500">
+                  Access verified onchain. No content is sent to your browser unless your subscription is active.
+                </p>
               </div>
 
               {loadingPosts ? (
@@ -131,20 +157,19 @@ export default function ContentPage() {
                     </div>
                   ))}
                 </div>
-              ) : filteredPosts.length === 0 ? (
+              ) : posts.length === 0 && previews.length === 0 ? (
                 <div className="text-center py-16 space-y-3">
                   <p className="text-3xl">📝</p>
-                  <p className="text-surface-400 text-sm">No posts at your subscription level yet.</p>
-                  <p className="text-surface-500 text-xs">
-                    {creatorName} hasn&apos;t published content for your tier. Try upgrading.
-                  </p>
+                  <p className="text-surface-400 text-sm">No posts yet.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {filteredPosts.map((post) => (
+                  {posts.map((post) => (
                     <article
                       key={post.id}
-                      className="p-5 rounded-xl border border-surface-700 bg-surface-900/50"
+                      className={`p-5 rounded-xl border bg-surface-900/50 ${
+                        post.gated ? "border-surface-800" : "border-surface-700"
+                      }`}
                     >
                       <div className="flex items-start justify-between mb-3">
                         <h2 className="font-semibold text-[15px]">{post.title}</h2>
@@ -154,12 +179,30 @@ export default function ContentPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-surface-300 whitespace-pre-wrap leading-relaxed">
-                        {post.content}
-                      </p>
-                      <p className="text-[11px] text-surface-500 mt-4">
-                        {formatDate(post.created_at)}
-                      </p>
+                      {post.gated ? (
+                        <div className="space-y-3">
+                          <p className="text-sm text-surface-500 italic">{post.preview || "Locked content."}</p>
+                          <div className="flex items-center gap-2 text-xs text-hush-400">
+                            <span>🔒</span>
+                            <span>
+                              Upgrade to {(tierList[post.tier_index] as { name: string })?.name} to read this.
+                            </span>
+                          </div>
+                          <Link
+                            href={`/${creatorId}`}
+                            className="inline-flex items-center px-4 py-2 rounded-lg bg-hush-600 hover:bg-hush-500 text-white text-xs font-medium transition-colors"
+                          >
+                            Upgrade
+                          </Link>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm text-surface-300 whitespace-pre-wrap leading-relaxed">
+                            {post.content}
+                          </p>
+                          <p className="text-[11px] text-surface-500 mt-4">{formatDate(post.created_at)}</p>
+                        </>
+                      )}
                     </article>
                   ))}
                 </div>

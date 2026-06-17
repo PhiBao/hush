@@ -97,6 +97,10 @@ export default function CreatorPage() {
     return subscribed && post.tier_index <= subscriberTierIndex;
   }
 
+  function previewText(post: Post) {
+    return post.preview || (post.content ? post.content.slice(0, 160) : "");
+  }
+
   if (loadingCreator) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -198,13 +202,13 @@ export default function CreatorPage() {
                           </>
                         ) : (
                           <>
-                            <div className="blur-[3px] select-none opacity-30">
-                              <h3 className="font-semibold text-[15px] mb-2">{post.title}</h3>
-                              <p className="text-sm whitespace-pre-wrap line-clamp-3 leading-relaxed">
-                                {post.content.slice(0, 150)}...
+                            <div className="space-y-1">
+                              <h3 className="font-semibold text-[15px] mb-1">{post.title}</h3>
+                              <p className="text-sm text-surface-400 line-clamp-2 leading-relaxed">
+                                {previewText(post) || "Subscribe to read this post."}
                               </p>
                             </div>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-surface-950/50">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-surface-950/70">
                               <p className="text-xs text-surface-300">
                                 {isConnected
                                   ? `Subscribe to unlock ${(tierList[post.tier_index] as { name: string })?.name || "this"} content`

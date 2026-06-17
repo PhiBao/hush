@@ -82,6 +82,14 @@ export default function Home() {
           Hush
         </Link>
         <nav className="flex items-center gap-3">
+          {isConnected && (
+            <Link
+              href="/my-subs"
+              className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
+            >
+              My Subs
+            </Link>
+          )}
           {isConnected && isRegistered && (
             <Link
               href="/dashboard"
@@ -95,21 +103,46 @@ export default function Home() {
       </header>
 
       <main className="flex-1 px-4 py-8">
-        <div className="max-w-xl mx-auto space-y-8">
-          <div className="text-center space-y-3 pb-2">
-            <h1 className="text-3xl font-bold">
+        <div className="max-w-xl mx-auto space-y-10">
+          {/* Hero */}
+          <div className="text-center space-y-4 pt-4">
+            <h1 className="text-4xl font-bold">
               <span className="text-gradient">Hush</span>
             </h1>
-            <p className="text-surface-400 text-sm max-w-sm mx-auto leading-relaxed">
-              Creator subscriptions with encrypted payments. Support who you want. Nobody sees how much.
+            <p className="text-surface-300 text-base max-w-sm mx-auto leading-relaxed">
+              Creator subscriptions with encrypted payments.
+              Support who you want — nobody sees how much.
             </p>
+            <p className="text-surface-500 text-xs max-w-md mx-auto leading-relaxed">
+              Built on the Zama Protocol. Your payment is encrypted in your browser,
+              computed onchain as ciphertext, and decrypted only by the creator.
+            </p>
+
+            {/* The privacy contrast */}
+            <div className="grid grid-cols-2 gap-3 pt-2 max-w-md mx-auto">
+              <div className="p-4 rounded-xl border border-red-900/40 bg-red-950/20 text-left">
+                <p className="text-[11px] uppercase tracking-wider text-red-400 mb-1">Today</p>
+                <p className="text-sm text-surface-400">
+                  Every onchain tip is <span className="text-red-300">public forever</span>.
+                  Anyone can see who paid whom and how much.
+                </p>
+              </div>
+              <div className="p-4 rounded-xl border border-hush-800/40 bg-hush-950/20 text-left">
+                <p className="text-[11px] uppercase tracking-wider text-hush-400 mb-1">Hush</p>
+                <p className="text-sm text-surface-400">
+                  Payments are <span className="text-hush-300">encrypted onchain</span>.
+                  Only the creator decrypts their total. Nobody else sees anything.
+                </p>
+              </div>
+            </div>
+
             {!isConnected && (
-              <div className="pt-3">
+              <div className="pt-4">
                 <ConnectButton />
               </div>
             )}
             {isConnected && !isRegistered && (
-              <div className="pt-3">
+              <div className="pt-4">
                 <Link
                   href="/create"
                   className="inline-flex items-center px-6 py-2.5 rounded-xl bg-hush-600 hover:bg-hush-500 text-white text-sm font-medium transition-colors"
@@ -120,6 +153,7 @@ export default function Home() {
             )}
           </div>
 
+          {/* Feed */}
           <section className="space-y-2">
             <h2 className="text-xs font-medium text-surface-500 uppercase tracking-wider px-1">
               Latest
@@ -163,7 +197,9 @@ export default function Home() {
                 {posts.map((post) => {
                   const creatorAddr = post.creator_address.toLowerCase();
                   const isSubbed = subscribedCreators.has(creatorAddr);
-                  const displayName = post.creator_name || `${creatorAddr.slice(0, 6)}...${creatorAddr.slice(-4)}`;
+                  const displayName =
+                    post.creator_name || `${creatorAddr.slice(0, 6)}...${creatorAddr.slice(-4)}`;
+                  const previewText = post.preview || post.content;
 
                   return (
                     <Link
@@ -195,31 +231,17 @@ export default function Home() {
                           )}
                         </div>
 
-                        <div className={isSubbed ? "" : "blur-[3px] select-none opacity-30"}>
-                          <h3 className="font-semibold text-surface-100 text-[15px] mb-1">
-                            {post.title}
-                          </h3>
-                          <p className="text-sm text-surface-400 line-clamp-2 leading-relaxed">
-                            {post.content}
-                          </p>
-                        </div>
+                        <h3 className="font-semibold text-surface-100 text-[15px] mb-1">
+                          {post.title}
+                        </h3>
+                        <p className="text-sm text-surface-400 line-clamp-2 leading-relaxed">
+                          {previewText || "Subscribe to read this post."}
+                        </p>
 
-                        {!isSubbed && (
-                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-surface-950/50">
-                            <p className="text-xs text-surface-300">
-                              {isConnected
-                                ? "Subscribe to read"
-                                : "Connect to read"}
-                            </p>
-                            {!isConnected ? (
-                              <div onClick={(e) => e.preventDefault()}>
-                                <ConnectButton />
-                              </div>
-                            ) : (
-                              <span className="text-[11px] text-hush-400">
-                                Click to view
-                              </span>
-                            )}
+                        {!isSubbed && post.tier_index > 0 && (
+                          <div className="mt-3 flex items-center gap-1.5 text-[11px] text-hush-400">
+                            <span>🔒</span>
+                            <span>Subscribe to unlock</span>
                           </div>
                         )}
                       </div>
@@ -233,7 +255,7 @@ export default function Home() {
       </main>
 
       <footer className="text-center text-surface-600 text-[11px] py-6 border-t border-surface-800/50">
-        Private payments &middot; Encrypted on Zama fhEVM
+        Private payments &middot; Encrypted on Zama fhEVM &middot; Confidential payroll for the creator economy
       </footer>
     </div>
   );

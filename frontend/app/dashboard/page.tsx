@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
-import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "../../lib/contract";
+import { HUSH_ABI, HUSH_CONTRACT_ADDRESS, formatTokenAmount } from "../../lib/contract";
 import { EarningsCard } from "../../components/EarningsCard";
 import { getPosts, createPost, deletePost, Post } from "../../lib/supabase";
 
@@ -23,6 +23,14 @@ export default function DashboardPage() {
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
     functionName: "getTiers",
+    args: [address ?? "0x0000000000000000000000000000000000000000"],
+    query: { enabled: !!address },
+  });
+
+  const { data: subCount } = useReadContract({
+    abi: HUSH_ABI,
+    address: HUSH_CONTRACT_ADDRESS,
+    functionName: "activeSubscriberCount",
     args: [address ?? "0x0000000000000000000000000000000000000000"],
     query: { enabled: !!address },
   });
@@ -141,7 +149,18 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {address && <EarningsCard creatorAddress={address} />}
             <div className="p-6 rounded-xl border border-surface-700 bg-surface-900/50">
-              <h3 className="text-sm font-medium text-surface-400 mb-3">Active Tiers</h3>
+              <h3 className="text-sm font-medium text-surface-400 mb-3">Active Subscribers</h3>
+              <p className="text-3xl font-bold text-surface-200">
+                {subCount !== undefined ? (subCount as bigint).toString() : "—"}
+              </p>
+              <p className="text-xs text-surface-500 mt-1">
+                Count is public. Individual supporter amounts are never visible to anyone.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6 rounded-xl border border-surface-700 bg-surface-900/50">
+            <h3 className="text-sm font-medium text-surface-400 mb-3">Active Tiers</h3>
               {tierList.length === 0 ? (
                 <p className="text-surface-500 text-sm">
                   No tiers yet. <Link href="/create" className="text-hush-400">Add tiers</Link>
@@ -158,7 +177,7 @@ export default function DashboardPage() {
                       <li key={i} className="flex items-center justify-between text-sm">
                         <span>{t.name}</span>
                         <span className="text-surface-400">
-                          {t.price} wei
+                          {formatTokenAmount(t.price)} cUSDT
                           {!t.active && (
                             <span className="ml-2 text-red-400">(inactive)</span>
                           )}
@@ -166,10 +185,9 @@ export default function DashboardPage() {
                       </li>
                     );
                   })}
-                </ul>
-              )}
+                 </ul>
+               )}
             </div>
-          </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">

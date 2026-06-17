@@ -45,7 +45,7 @@ export function TierBuilder({ tiers, onChange }: TierBuilderProps) {
           <div>
             <p className="font-medium">{tier.name}</p>
             <p className="text-sm text-surface-400">
-              {tier.price} wei &middot; {Math.round(Number(tier.durationSecs) / 86400)} days
+              {tier.price} cUSDT &middot; {Math.round(Number(tier.durationSecs) / 86400)} days
             </p>
           </div>
           <button
@@ -71,7 +71,7 @@ export function TierBuilder({ tiers, onChange }: TierBuilderProps) {
               type="number"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder="Price in wei"
+              placeholder="Price in cUSDT units (e.g. 100 = 100 cUSDT)"
               className="flex-1 px-3 py-2 rounded-lg bg-surface-900 border border-surface-700 focus:border-hush-500 focus:outline-none text-surface-100 text-sm placeholder-surface-500"
             />
             <input
