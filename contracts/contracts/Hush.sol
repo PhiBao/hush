@@ -22,6 +22,7 @@ contract Hush is ZamaEthereumConfig {
     mapping(address => Creator) public creators;
     mapping(address => Tier[]) public creatorTiers;
     mapping(address => mapping(address => uint256)) public subscriptionExpiry;
+    mapping(address => mapping(address => uint256)) public subscriptionTier;
     mapping(address => euint64) private _creatorEarnings;
 
     uint256 public totalCreators;
@@ -92,6 +93,7 @@ contract Hush is ZamaEthereumConfig {
 
         uint256 expiry = block.timestamp + creatorTiers[creator][tierIndex].durationSecs;
         subscriptionExpiry[creator][msg.sender] = expiry;
+        subscriptionTier[creator][msg.sender] = tierIndex;
         totalSubscriptions++;
 
         emit Subscribed(creator, msg.sender, tierIndex, expiry);
@@ -100,6 +102,11 @@ contract Hush is ZamaEthereumConfig {
 
     function isSubscribed(address creator, address subscriber) public view returns (bool) {
         return subscriptionExpiry[creator][subscriber] > block.timestamp;
+    }
+
+    function getSubscriptionTier(address creator, address subscriber) external view returns (uint256) {
+        require(subscriptionExpiry[creator][subscriber] > block.timestamp, "Subscription expired or not found");
+        return subscriptionTier[creator][subscriber];
     }
 
     function getCreatorEarnings(address creator) external view returns (euint64) {

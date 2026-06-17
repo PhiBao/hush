@@ -1,17 +1,19 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
 import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "../../../lib/contract";
+import { getPosts, Post } from "../../../lib/supabase";
 
 export default function ContentPage() {
   const { creatorId } = useParams<{ creatorId: string }>();
   const { address, isConnected } = useAccount();
   const creatorAddr = creatorId as `0x${string}`;
 
-  const { data: creator } = useReadContract({
+  const { data: creator, isLoading: loadingCreator } = useReadContract({
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
     functionName: "creators",
@@ -19,7 +21,15 @@ export default function ContentPage() {
     query: { enabled: !!creatorAddr },
   });
 
-  const { data: isSubscribed, isLoading: checking } = useReadContract({
+  const { data: tiers } = useReadContract({
+    abi: HUSH_ABI,
+    address: HUSH_CONTRACT_ADDRESS,
+    functionName: "getTiers",
+    args: [creatorAddr],
+    query: { enabled: !!creatorAddr },
+  });
+
+  const { data: isSubscribed, isLoading: checkingSub } = useReadContract({
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
     functionName: "isSubscribed",
@@ -27,63 +37,142 @@ export default function ContentPage() {
     query: { enabled: !!creatorAddr && !!address },
   });
 
+  const { data: subTier } = useReadContract({
+    abi: HUSH_ABI,
+    address: HUSH_CONTRACT_ADDRESS,
+    functionName: "subscriptionTier",
+    args: [creatorAddr, address ?? "0x0000000000000000000000000000000000000000"],
+    query: { enabled: !!creatorAddr && !!address },
+  });
+
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+
   const creatorName = (creator as [string, string, boolean])?.[0] || "this creator";
+  const tierList = Array.isArray(tiers) ? tiers : [];
+  const subscriberTier = subTier !== undefined ? Number(subTier) : -1;
+
+  useEffect(() => {
+    if (creatorAddr) {
+      getPosts(creatorAddr).then((p) => {
+        setPosts(p);
+        setLoadingPosts(false);
+      });
+    }
+  }, [creatorAddr]);
+
+  const filteredPosts = posts.filter((p) => p.tier_index <= subscriberTier);
+
+  function formatDate(ts: string) {
+    return new Date(ts).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  if (loadingCreator || checkingSub) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="animate-spin w-6 h-6 border-2 border-hush-500 border-t-transparent rounded-full" />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <main className="flex-1 flex flex-col items-center justify-center px-4">
-        {!isConnected ? (
-          <div className="text-center space-y-4">
-            <p className="text-2xl">🔐</p>
-            <h1 className="text-xl font-bold">Connect to access content</h1>
-            <p className="text-surface-400">This content is for subscribers only.</p>
-            <ConnectButton />
-          </div>
-        ) : checking ? (
-          <div className="text-center space-y-4">
-            <div className="animate-spin w-8 h-8 border-2 border-hush-500 border-t-transparent rounded-full mx-auto" />
-            <p className="text-surface-400">Checking subscription...</p>
-          </div>
-        ) : !isSubscribed ? (
-          <div className="text-center space-y-4">
-            <p className="text-2xl">🔐</p>
-            <h1 className="text-xl font-bold">Subscriber-only content</h1>
-            <p className="text-surface-400">
-              You need an active subscription to {creatorName} to access this.
-            </p>
-            <Link
-              href={`/${creatorId}`}
-              className="inline-flex items-center px-6 py-3 rounded-xl bg-hush-600 hover:bg-hush-500 text-white font-medium transition-colors"
-            >
-              Subscribe Now
-            </Link>
-          </div>
-        ) : (
-          <div className="max-w-2xl text-center space-y-6">
-            <div className="text-4xl">✨</div>
-            <h1 className="text-2xl font-bold">Welcome, subscriber!</h1>
-            <p className="text-surface-400">
-              Thank you for supporting {creatorName}. Your payment is encrypted onchain —
-              only {creatorName} can decrypt their total earnings. Your individual support
-              amount is private.
-            </p>
-            <div className="p-8 rounded-2xl border border-hush-500/30 bg-hush-950/50">
-              <h2 className="text-xl font-semibold mb-4">Exclusive Content</h2>
-              <p className="text-surface-300">
-                This is where {creatorName}&apos;s subscriber-only content would live.
-                Posts, videos, downloads, early access, community access — all gated by
-                your encrypted subscription on Zama fhEVM.
-              </p>
+      <main className="flex-1 px-4 py-8">
+        <div className="max-w-xl mx-auto space-y-8">
+          {!isConnected ? (
+            <div className="text-center py-20 space-y-4">
+              <p className="text-2xl">🔐</p>
+              <h1 className="text-xl font-bold">Connect to access content</h1>
+              <p className="text-surface-400 text-sm">This content is for subscribers only.</p>
+              <ConnectButton />
             </div>
-            <Link
-              href={`/${creatorId}`}
-              className="text-hush-400 hover:text-hush-300 text-sm"
-            >
-              ← Back to {creatorName}&apos;s page
-            </Link>
-          </div>
-        )}
+          ) : !isSubscribed ? (
+            <div className="text-center py-20 space-y-4">
+              <p className="text-2xl">🔐</p>
+              <h1 className="text-xl font-bold">Subscriber-only content</h1>
+              <p className="text-surface-400 text-sm max-w-sm mx-auto">
+                You need an active subscription to {creatorName} to access exclusive content.
+              </p>
+              <Link
+                href={`/${creatorId}`}
+                className="inline-flex items-center px-5 py-2.5 rounded-xl bg-hush-600 hover:bg-hush-500 text-white text-sm font-medium transition-colors"
+              >
+                Subscribe Now
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="text-center space-y-2">
+                <p className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-900/30 border border-green-800/50 text-green-400 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  Subscribed
+                  {tierList[subscriberTier] && (
+                    <span> &middot; {(tierList[subscriberTier] as { name: string }).name}</span>
+                  )}
+                </p>
+                <h1 className="text-xl font-bold">{creatorName}&apos;s Content</h1>
+              </div>
+
+              {loadingPosts ? (
+                <div className="space-y-2">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="p-4 rounded-xl border border-surface-800 bg-surface-900/20 animate-pulse">
+                      <div className="h-4 w-3/4 bg-surface-800 rounded mb-2" />
+                      <div className="h-3 w-full bg-surface-800 rounded mb-1" />
+                      <div className="h-3 w-1/2 bg-surface-800 rounded" />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredPosts.length === 0 ? (
+                <div className="text-center py-16 space-y-3">
+                  <p className="text-3xl">📝</p>
+                  <p className="text-surface-400 text-sm">No posts at your subscription level yet.</p>
+                  <p className="text-surface-500 text-xs">
+                    {creatorName} hasn&apos;t published content for your tier. Try upgrading.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredPosts.map((post) => (
+                    <article
+                      key={post.id}
+                      className="p-5 rounded-xl border border-surface-700 bg-surface-900/50"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <h2 className="font-semibold text-[15px]">{post.title}</h2>
+                        {post.tier_index > 0 && (
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-hush-900/30 border border-hush-800/50 text-hush-400 ml-2 shrink-0">
+                            {(tierList[post.tier_index] as { name: string })?.name || `Tier ${post.tier_index + 1}`}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-surface-300 whitespace-pre-wrap leading-relaxed">
+                        {post.content}
+                      </p>
+                      <p className="text-[11px] text-surface-500 mt-4">
+                        {formatDate(post.created_at)}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              <div className="text-center">
+                <Link href={`/${creatorId}`} className="text-hush-400 hover:text-hush-300 text-sm">
+                  &larr; Back to {creatorName}&apos;s page
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
       </main>
     </div>
   );
@@ -91,8 +180,8 @@ export default function ContentPage() {
 
 function Header() {
   return (
-    <header className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
-      <Link href="/" className="text-xl font-bold text-gradient">
+    <header className="sticky top-0 z-40 bg-surface-950/80 backdrop-blur-sm flex items-center justify-between px-6 py-3 border-b border-surface-800">
+      <Link href="/" className="text-lg font-bold text-gradient">
         Hush
       </Link>
       <ConnectButton />

@@ -2,43 +2,17 @@
 
 import { useState } from "react";
 import { useAccount, useWriteContract } from "wagmi";
+import { RelayerWeb, SepoliaConfig } from "@zama-fhe/sdk";
 import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "../lib/contract";
 
-const RELAYER_URL = "https://relayer.sepolia.zama.ai";
-
-async function encryptValue(
-  value: bigint,
-  type: string,
-  contractAddress: `0x${string}`,
-  userAddress: `0x${string}`
-): Promise<{ encryptedValue: `0x${string}`; inputProof: `0x${string}` }> {
-  const res = await fetch(`${RELAYER_URL}/encrypt`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      values: [{ value: value.toString(), type }],
-      contractAddress,
-      userAddress,
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Relayer encrypt failed: ${text}`);
-  }
-
-  const data = await res.json();
-  return {
-    encryptedValue: data.handles?.[0] || data.encryptedValues?.[0],
-    inputProof: data.inputProof,
-  };
-}
+const relayer = new RelayerWeb(SepoliaConfig as never);
 
 interface SubscribeModalProps {
   creatorAddress: string;
   creatorName: string;
   tierName: string;
   tierPrice: string;
+  tierIndex: number;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -48,6 +22,7 @@ export function SubscribeModal({
   creatorName,
   tierName,
   tierPrice,
+  tierIndex,
   isOpen,
   onClose,
 }: SubscribeModalProps) {
@@ -69,24 +44,26 @@ export function SubscribeModal({
 
     try {
       const paymentAmount = BigInt(tierPrice);
-      const { encryptedValue, inputProof } = await encryptValue(
-        paymentAmount,
-        "euint64",
-        HUSH_CONTRACT_ADDRESS,
-        address
-      );
+      const encrypted = await relayer.encrypt({
+        values: [{ value: paymentAmount, type: "euint64" }],
+        contractAddress: HUSH_CONTRACT_ADDRESS as `0x${string}`,
+        userAddress: address,
+      });
+
+      const handleHex = `0x${Buffer.from(encrypted.handles[0]).toString("hex")}` as `0x${string}`;
+      const proofHex = `0x${Buffer.from(encrypted.inputProof).toString("hex")}` as `0x${string}`;
 
       setStatus("subscribing");
 
       const hash = await writeContractAsync({
         abi: HUSH_ABI,
-        address: HUSH_CONTRACT_ADDRESS,
+        address: HUSH_CONTRACT_ADDRESS as `0x${string}`,
         functionName: "subscribe",
         args: [
           creatorAddress as `0x${string}`,
-          0n,
-          encryptedValue,
-          inputProof,
+          BigInt(tierIndex),
+          handleHex,
+          proofHex,
         ],
       });
 

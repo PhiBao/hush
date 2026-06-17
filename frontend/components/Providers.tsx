@@ -4,13 +4,13 @@ import "@rainbow-me/rainbowkit/styles.css";
 import { RainbowKitProvider, getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider } from "wagmi";
-import { sepolia, hardhat } from "wagmi/chains";
+import { sepolia } from "wagmi/chains";
 import { ZamaProvider } from "./ZamaProvider";
 
 const config = getDefaultConfig({
   appName: "Hush",
   projectId: "hush-app",
-  chains: [sepolia, hardhat],
+  chains: [sepolia],
   ssr: false,
 });
 

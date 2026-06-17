@@ -140,6 +140,26 @@ export const HUSH_ABI = [
   },
   {
     type: "function",
+    name: "subscriptionTier",
+    inputs: [
+      { name: "", type: "address", internalType: "address" },
+      { name: "", type: "address", internalType: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getSubscriptionTier",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "subscriber", type: "address", internalType: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "totalCreators",
     inputs: [],
     outputs: [{ name: "", type: "uint256", internalType: "uint256" }],

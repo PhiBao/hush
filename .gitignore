@@ -5,7 +5,9 @@ artifacts/
 cache/
 types/
 coverage/
-.env
-.env.local
 *.log
 fhevmTemp/
+supabase/
+.env
+.env.local
+pnpm-lock.yaml

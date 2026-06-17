@@ -128,4 +128,18 @@ describe("Hush", function () {
   it("should track total creators", async function () {
     expect(await hush.totalCreators()).to.equal(1n);
   });
+
+  it("should track subscription tier", async function () {
+    const storedTier = await hush.subscriptionTier(creator.address, subscriber.address);
+    expect(storedTier).to.equal(1n);
+
+    const gotTier = await hush.getSubscriptionTier(creator.address, subscriber.address);
+    expect(gotTier).to.equal(1n);
+  });
+
+  it("should revert getSubscriptionTier for expired/non-existent subscription", async function () {
+    await expect(
+      hush.getSubscriptionTier(creator.address, owner.address)
+    ).to.be.revertedWith("Subscription expired or not found");
+  });
 });

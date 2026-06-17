@@ -1,23 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useWriteContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import Link from "next/link";
 import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "../../lib/contract";
 import { TierBuilder, TierData } from "../../components/TierBuilder";
 
 export default function CreatePage() {
   const { address, isConnected } = useAccount();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { writeContractAsync } = useWriteContract();
+
+  const { data: existingCreator } = useReadContract({
+    abi: HUSH_ABI,
+    address: HUSH_CONTRACT_ADDRESS,
+    functionName: "creators",
+    args: [address ?? "0x0000000000000000000000000000000000000000"],
+    query: { enabled: !!address },
+  });
+
+  const isRegistered = (existingCreator as [string, string, boolean])?.[2] ?? false;
+  const existingName = (existingCreator as [string, string, boolean])?.[0] ?? "";
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [tiers, setTiers] = useState<TierData[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   if (!isConnected) {
     return (
@@ -32,8 +46,36 @@ export default function CreatePage() {
     );
   }
 
+  if (isRegistered) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-4">
+          <p className="text-3xl">✨</p>
+          <h1 className="text-2xl font-bold">You&apos;re already a creator, {existingName}</h1>
+          <p className="text-surface-400">Your creator page is already live.</p>
+          <div className="flex gap-3">
+            <Link
+              href={`/${address}`}
+              className="inline-flex items-center px-6 py-3 rounded-xl bg-hush-600 hover:bg-hush-500 text-white font-medium transition-colors"
+            >
+              View Your Page
+            </Link>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center px-6 py-3 rounded-xl border border-surface-700 hover:border-surface-500 text-surface-300 font-medium transition-colors"
+            >
+              Dashboard
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   async function handleRegister() {
     if (!name.trim()) return;
+    setError("");
     setLoading(true);
     try {
       await writeContractAsync({
@@ -42,9 +84,17 @@ export default function CreatePage() {
         functionName: "registerCreator",
         args: [name, bio],
       });
+      queryClient.invalidateQueries({ queryKey: ["readContract"] });
       setStep(1);
-    } catch (e) {
-      console.error(e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Registration failed";
+      if (msg.includes("Already registered")) {
+        setError("This wallet is already registered as a creator.");
+      } else if (msg.includes("user rejected")) {
+        setError("Transaction was rejected.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -55,6 +105,7 @@ export default function CreatePage() {
       setStep(2);
       return;
     }
+    setError("");
     setLoading(true);
     try {
       for (const tier of tiers) {
@@ -70,10 +121,12 @@ export default function CreatePage() {
           ],
         });
       }
+      queryClient.invalidateQueries({ queryKey: ["readContract"] });
       setStep(2);
       router.push(`/${address}`);
-    } catch (e) {
-      console.error(e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to add tiers";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -133,6 +186,11 @@ export default function CreatePage() {
                     className="w-full px-4 py-3 rounded-xl bg-surface-800 border border-surface-700 focus:border-hush-500 focus:outline-none text-surface-100 placeholder-surface-500 resize-none"
                   />
                 </div>
+                {error && (
+                  <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-lg px-4 py-3">
+                    {error}
+                  </p>
+                )}
                 <button
                   onClick={handleRegister}
                   disabled={loading || !name.trim()}
@@ -153,6 +211,11 @@ export default function CreatePage() {
                 </p>
               </div>
               <TierBuilder tiers={tiers} onChange={setTiers} />
+              {error && (
+                <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-lg px-4 py-3">
+                  {error}
+                </p>
+              )}
               <div className="flex gap-3">
                 <button
                   onClick={() => setStep(0)}
