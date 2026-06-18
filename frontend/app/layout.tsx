@@ -17,7 +17,7 @@ export const metadata: Metadata = {
       "Subscription payments encrypted onchain. Only the creator decrypts their total. Nobody else sees anything.",
     type: "website",
   },
-  icons: { icon: "/favicon.ico" },
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
