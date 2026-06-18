@@ -1,12 +1,32 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
-import { HUSH_ABI, HUSH_CONTRACT_ADDRESS, formatTokenAmount } from "../../lib/contract";
-import { EarningsCard } from "../../components/EarningsCard";
-import { getPosts, createPost, deletePost, Post } from "../../lib/supabase";
+import {
+  ArrowUpRightIcon,
+  CopyIcon,
+  PlusIcon,
+  TrashIcon,
+  UsersIcon,
+} from "@phosphor-icons/react";
+import { HUSH_ABI, HUSH_CONTRACT_ADDRESS, formatTokenAmount } from "@/lib/contract";
+import { EarningsCard } from "@/components/EarningsCard";
+import { getPosts, createPost, deletePost, type Post } from "@/lib/supabase";
+import { SiteHeader } from "@/components/site/SiteHeader";
+import { SiteFooter } from "@/components/site/SiteFooter";
+import { Container } from "@/components/site/Container";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+
+const ZERO = "0x0000000000000000000000000000000000000000" as `0x${string}`;
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount();
@@ -15,7 +35,7 @@ export default function DashboardPage() {
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
     functionName: "creators",
-    args: [address ?? "0x0000000000000000000000000000000000000000"],
+    args: [address ?? ZERO],
     query: { enabled: !!address },
   });
 
@@ -23,7 +43,7 @@ export default function DashboardPage() {
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
     functionName: "getTiers",
-    args: [address ?? "0x0000000000000000000000000000000000000000"],
+    args: [address ?? ZERO],
     query: { enabled: !!address },
   });
 
@@ -31,7 +51,7 @@ export default function DashboardPage() {
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
     functionName: "activeSubscriberCount",
-    args: [address ?? "0x0000000000000000000000000000000000000000"],
+    args: [address ?? ZERO],
     query: { enabled: !!address },
   });
 
@@ -48,12 +68,16 @@ export default function DashboardPage() {
   const [newTier, setNewTier] = useState(0);
   const [saving, setSaving] = useState(false);
   const [postError, setPostError] = useState("");
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin);
+  }, []);
 
   const loadPosts = useCallback(async () => {
     if (!address) return;
     setLoadingPosts(true);
-    const p = await getPosts(address);
-    setPosts(p);
+    setPosts(await getPosts(address));
     setLoadingPosts(false);
   }, [address]);
 
@@ -72,6 +96,7 @@ export default function DashboardPage() {
       setNewTier(0);
       setShowNewPost(false);
       await loadPosts();
+      toast.success("Post published");
     } catch {
       setPostError("Failed to create post. Make sure the posts table exists in Supabase.");
     } finally {
@@ -82,25 +107,16 @@ export default function DashboardPage() {
   async function handleDeletePost(id: number) {
     await deletePost(id);
     await loadPosts();
-  }
-
-  function formatDate(ts: string) {
-    return new Date(ts).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    toast.success("Post deleted");
   }
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 flex flex-col items-center justify-center gap-4">
-          <h1 className="text-2xl font-bold">Connect your wallet</h1>
-          <p className="text-surface-400">View your creator dashboard.</p>
+      <div className="flex min-h-[100dvh] flex-col">
+        <SiteHeader />
+        <main className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Connect your wallet</h1>
+          <p className="text-sm text-muted-foreground">View your creator dashboard.</p>
           <ConnectButton />
         </main>
       </div>
@@ -109,243 +125,247 @@ export default function DashboardPage() {
 
   if (!isRegistered) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-4">
-          <p className="text-3xl">👋</p>
-          <h1 className="text-2xl font-bold">You haven&apos;t registered as a creator yet</h1>
-          <p className="text-surface-400 max-w-md">
+      <div className="flex min-h-[100dvh] flex-col">
+        <SiteHeader />
+        <main className="flex flex-1 flex-col items-center justify-center gap-5 px-4 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-card text-ember-300">
+            <UsersIcon className="h-7 w-7" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            You have not registered as a creator yet
+          </h1>
+          <p className="max-w-md text-sm text-muted-foreground">
             Create your creator page to start earning private subscription payments.
           </p>
-          <Link
-            href="/create"
-            className="inline-flex items-center px-6 py-3 rounded-xl bg-hush-600 hover:bg-hush-500 text-white font-medium transition-colors"
-          >
-            Get Started
-          </Link>
+          <Button asChild>
+            <Link href="/create">Get started</Link>
+          </Button>
         </main>
       </div>
     );
   }
 
+  const shareUrl = address ? `${origin}/${address}` : "";
+
+  async function copyShare() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied", { description: shareUrl });
+    } catch {
+      toast.error("Could not copy");
+    }
+  }
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-1 px-4 py-8">
-        <div className="max-w-2xl mx-auto space-y-8">
-          <div className="flex items-start justify-between">
+    <div className="flex min-h-[100dvh] flex-col">
+      <SiteHeader />
+      <main className="flex-1 py-10 md:py-14">
+        <Container size="wide" className="space-y-8">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold">{creatorName}</h1>
-              <p className="text-surface-400 text-sm">Creator Dashboard</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">{creatorName}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Creator dashboard</p>
             </div>
-            <Link
-              href={`/${address}`}
-              className="text-sm text-hush-400 hover:text-hush-300 transition-colors"
-            >
-              View public page →
-            </Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/${address}`}>
+                View public page <ArrowUpRightIcon className="h-4 w-4" />
+              </Link>
+            </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Earnings + subscribers */}
+          <div className="grid gap-4 md:grid-cols-2">
             {address && <EarningsCard creatorAddress={address} />}
-            <div className="p-6 rounded-xl border border-surface-700 bg-surface-900/50">
-              <h3 className="text-sm font-medium text-surface-400 mb-3">Active Subscribers</h3>
-              <p className="text-3xl font-bold text-surface-200">
-                {subCount !== undefined ? (subCount as bigint).toString() : "—"}
-              </p>
-              <p className="text-xs text-surface-500 mt-1">
-                Count is public. Individual supporter amounts are never visible to anyone.
-              </p>
-            </div>
+            <Card className="flex flex-col justify-between">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <UsersIcon className="h-4 w-4" />
+                  Active subscribers
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="font-mono text-4xl font-semibold tabular-nums text-foreground">
+                  {subCount !== undefined ? (subCount as bigint).toString() : "-"}
+                </p>
+                <CardDescription>
+                  Count is public. Individual supporter amounts are never visible to anyone.
+                </CardDescription>
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="p-6 rounded-xl border border-surface-700 bg-surface-900/50">
-            <h3 className="text-sm font-medium text-surface-400 mb-3">Active Tiers</h3>
+          {/* Active tiers */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Active tiers</CardTitle>
+            </CardHeader>
+            <CardContent>
               {tierList.length === 0 ? (
-                <p className="text-surface-500 text-sm">
-                  No tiers yet. <Link href="/create" className="text-hush-400">Add tiers</Link>
+                <p className="text-sm text-muted-foreground">
+                  No tiers yet.{" "}
+                  <Link href="/create" className="text-ember-300 hover:text-ember-200">Add tiers</Link>
                 </p>
               ) : (
-                <ul className="space-y-2">
+                <ul className="divide-y divide-border">
                   {tierList.map((tier: unknown, i: number) => {
-                    const t = tier as {
-                      name: string;
-                      price: string;
-                      active: boolean;
-                    };
+                    const t = tier as { name: string; price: string; active: boolean };
                     return (
-                      <li key={i} className="flex items-center justify-between text-sm">
-                        <span>{t.name}</span>
-                        <span className="text-surface-400">
+                      <li key={i} className="flex items-center justify-between py-3 text-sm">
+                        <span className="text-foreground">{t.name}</span>
+                        <span className="font-mono text-muted-foreground">
                           {formatTokenAmount(t.price)} cUSDT
-                          {!t.active && (
-                            <span className="ml-2 text-red-400">(inactive)</span>
-                          )}
+                          {!t.active && <span className="ml-2 text-destructive-foreground/80">(inactive)</span>}
                         </span>
                       </li>
                     );
                   })}
-                 </ul>
-               )}
-            </div>
+                </ul>
+              )}
+            </CardContent>
+          </Card>
 
-          <div className="space-y-4">
+          {/* Posts */}
+          <section className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Posts</h2>
-              <button
-                onClick={() => setShowNewPost(true)}
-                className="px-4 py-2 rounded-lg bg-hush-600 hover:bg-hush-500 text-white text-sm font-medium transition-colors"
-              >
-                + New Post
-              </button>
+              <h2 className="text-lg font-semibold text-foreground">Posts</h2>
+              <Button size="sm" onClick={() => setShowNewPost((v) => !v)}>
+                <PlusIcon className="h-4 w-4" />
+                New post
+              </Button>
             </div>
 
             {postError && (
-              <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-lg px-4 py-3">
+              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive-foreground/90">
                 {postError}
               </p>
             )}
 
             {showNewPost && (
-              <div className="p-6 rounded-xl border border-hush-500/30 bg-surface-800 space-y-4">
-                <h3 className="font-medium">New Post</h3>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Post title"
-                  className="w-full px-4 py-3 rounded-xl bg-surface-900 border border-surface-700 focus:border-hush-500 focus:outline-none text-surface-100 placeholder-surface-500"
-                />
-                <textarea
-                  value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  placeholder="Write your post content..."
-                  rows={5}
-                  className="w-full px-4 py-3 rounded-xl bg-surface-900 border border-surface-700 focus:border-hush-500 focus:outline-none text-surface-100 placeholder-surface-500 resize-none"
-                />
-                <div>
-                  <label className="block text-sm text-surface-400 mb-1">
-                    Visible to which tier and above?
-                  </label>
-                  <select
-                    value={newTier}
-                    onChange={(e) => setNewTier(Number(e.target.value))}
-                    className="w-full px-4 py-3 rounded-xl bg-surface-900 border border-surface-700 focus:border-hush-500 focus:outline-none text-surface-100"
-                  >
-                    {tierList.map((tier: unknown, i: number) => {
-                      const t = tier as { name: string };
-                      return (
-                        <option key={i} value={i}>
-                          {t.name} {i === 0 ? "(all subscribers)" : `+ above`}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleCreatePost}
-                    disabled={saving || !newTitle.trim()}
-                    className="flex-1 py-2 rounded-lg bg-hush-600 hover:bg-hush-500 disabled:opacity-50 text-white text-sm font-medium transition-colors"
-                  >
-                    {saving ? "Publishing..." : "Publish"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowNewPost(false);
-                      setNewTitle("");
-                      setNewContent("");
-                    }}
-                    className="px-4 py-2 rounded-lg border border-surface-700 hover:border-surface-500 text-surface-400 text-sm transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+              <Card className="border-primary/30">
+                <CardContent className="space-y-4 pt-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="post-title">Title</Label>
+                    <Input
+                      id="post-title"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="Post title"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="post-content">Content</Label>
+                    <Textarea
+                      id="post-content"
+                      value={newContent}
+                      onChange={(e) => setNewContent(e.target.value)}
+                      placeholder="Write your post content"
+                      rows={6}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="post-tier">Visible to which tier and above?</Label>
+                    <Select value={String(newTier)} onValueChange={(v) => setNewTier(Number(v))}>
+                      <SelectTrigger id="post-tier">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tierList.map((tier: unknown, i: number) => {
+                          const t = tier as { name: string };
+                          return (
+                            <SelectItem key={i} value={String(i)}>
+                              {t.name} {i === 0 ? "(all subscribers)" : "+ above"}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button onClick={handleCreatePost} disabled={saving || !newTitle.trim()} className="flex-1">
+                      {saving ? "Publishing" : "Publish"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowNewPost(false);
+                        setNewTitle("");
+                        setNewContent("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {loadingPosts ? (
-              <div className="text-center py-8">
-                <div className="animate-spin w-6 h-6 border-2 border-hush-500 border-t-transparent rounded-full mx-auto" />
-              </div>
+              <p className="py-8 text-center text-sm text-muted-foreground">Loading posts…</p>
             ) : posts.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-surface-500 text-sm">
-                  No posts yet. Create your first post for subscribers.
-                </p>
-              </div>
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No posts yet. Create your first post for subscribers.
+              </p>
             ) : (
-              <div className="space-y-3">
+              <ul className="divide-y divide-border rounded-2xl border border-border bg-card/40">
                 {posts.map((post) => (
-                  <div
-                    key={post.id}
-                    className="p-4 rounded-xl border border-surface-700 bg-surface-900/50"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="font-medium">{post.title}</h3>
-                        <p className="text-xs text-surface-500 mt-1">
-                          {formatDate(post.created_at)}
-                          {" · "}
-                          <span className="text-hush-400">
-                            {tierList[post.tier_index]
-                              ? (tierList[post.tier_index] as { name: string }).name
-                              : `Tier ${post.tier_index + 1}`}
-                          </span>
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDeletePost(post.id)}
-                        className="text-xs text-red-400 hover:text-red-300 transition-colors"
-                      >
-                        Delete
-                      </button>
+                  <li key={post.id} className="flex items-start justify-between gap-4 p-4">
+                    <div className="min-w-0">
+                      <h3 className="font-medium text-foreground truncate">{post.title}</h3>
+                      <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                        {new Date(post.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {" · "}
+                        <span className="text-ember-300">
+                          {tierList[post.tier_index]
+                            ? (tierList[post.tier_index] as { name: string }).name
+                            : `Tier ${post.tier_index + 1}`}
+                        </span>
+                      </p>
+                      <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{post.content}</p>
                     </div>
-                    <p className="text-sm text-surface-300 whitespace-pre-wrap line-clamp-2">
-                      {post.content}
-                    </p>
-                  </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeletePost(post.id)}
+                      aria-label="Delete post"
+                    >
+                      <TrashIcon className="h-4 w-4 text-destructive-foreground/80" />
+                    </Button>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
-          </div>
+          </section>
 
-          <div className="p-6 rounded-xl border border-dashed border-surface-700 space-y-2">
-            <h3 className="font-medium">Share Your Page</h3>
-            <p className="text-sm text-surface-400">
-              Share this link with your audience so they can subscribe confidentially.
-            </p>
-            <div className="flex gap-2">
-              <code className="flex-1 px-3 py-2 rounded-lg bg-surface-800 border border-surface-700 text-surface-300 text-sm break-all">
-                hush.vercel.app/{address}
-              </code>
-              <button
-                onClick={() =>
-                  navigator.clipboard.writeText(`https://hush.vercel.app/${address}`)
-                }
-                className="px-4 py-2 rounded-lg bg-hush-600 hover:bg-hush-500 text-white text-sm font-medium transition-colors"
-              >
-                Copy
-              </button>
-            </div>
-          </div>
+          {/* Share */}
+          <Card className="border-dashed">
+            <CardContent className="space-y-3 pt-6">
+              <h3 className="font-medium text-foreground">Share your page</h3>
+              <p className="text-sm text-muted-foreground">
+                Share this link with your audience so they can subscribe confidentially.
+              </p>
+              <div className="flex gap-2">
+                <code className="flex-1 break-all rounded-lg border border-border bg-muted/50 px-3 py-2 font-mono text-sm text-foreground/80">
+                  {origin}/{address}
+                </code>
+                <Button onClick={copyShare} aria-label="Copy share link">
+                  <CopyIcon className="h-4 w-4" />
+                  Copy
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-          <div className="text-center text-surface-500 text-sm">
-            Sepolia Testnet
-          </div>
-        </div>
+          <Separator />
+          <p className="text-center font-mono text-xs text-muted-foreground/60">Sepolia testnet</p>
+        </Container>
       </main>
+      <SiteFooter />
     </div>
-  );
-}
-
-function Header() {
-  return (
-    <header className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
-      <Link href="/" className="text-xl font-bold text-gradient">
-        Hush
-      </Link>
-      <ConnectButton />
-    </header>
   );
 }

@@ -1,13 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { toast } from "sonner";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
-import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "../../lib/contract";
-import { TierBuilder, TierData } from "../../components/TierBuilder";
+import { ArrowRightIcon, CheckIcon, SparkleIcon, CopyIcon } from "@phosphor-icons/react";
+import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "@/lib/contract";
+import { TierBuilder, type TierData } from "@/components/creator/TierBuilder";
+import { SiteHeader } from "@/components/site/SiteHeader";
+import { SiteFooter } from "@/components/site/SiteFooter";
+import { Container } from "@/components/site/Container";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+
+const STEPS = ["Profile", "Tiers", "Done"] as const;
 
 export default function CreatePage() {
   const { address, isConnected } = useAccount();
@@ -23,8 +36,8 @@ export default function CreatePage() {
     query: { enabled: !!address },
   });
 
-  const isRegistered = (existingCreator as [string, string, boolean])?.[2] ?? false;
-  const existingName = (existingCreator as [string, string, boolean])?.[0] ?? "";
+  const isRegistered = (existingCreator as [string, string, boolean] | undefined)?.[2] ?? false;
+  const existingName = (existingCreator as [string, string, boolean] | undefined)?.[0] ?? "";
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -32,14 +45,21 @@ export default function CreatePage() {
   const [tiers, setTiers] = useState<TierData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin);
+  }, []);
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 flex flex-col items-center justify-center gap-4">
-          <h1 className="text-2xl font-bold">Connect your wallet to start</h1>
-          <p className="text-surface-400">You&apos;ll need a wallet to create your creator page.</p>
+      <div className="flex min-h-[100dvh] flex-col">
+        <SiteHeader />
+        <main className="flex flex-1 flex-col items-center justify-center gap-5 px-4 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Connect your wallet to start
+          </h1>
+          <p className="text-sm text-muted-foreground">You will need a wallet to create your creator page.</p>
           <ConnectButton />
         </main>
       </div>
@@ -48,25 +68,23 @@ export default function CreatePage() {
 
   if (isRegistered) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-4">
-          <p className="text-3xl">✨</p>
-          <h1 className="text-2xl font-bold">You&apos;re already a creator, {existingName}</h1>
-          <p className="text-surface-400">Your creator page is already live.</p>
+      <div className="flex min-h-[100dvh] flex-col">
+        <SiteHeader />
+        <main className="flex flex-1 flex-col items-center justify-center gap-5 px-4 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 text-ember-300">
+            <SparkleIcon weight="fill" className="h-7 w-7" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            You are already a creator, {existingName}
+          </h1>
+          <p className="text-sm text-muted-foreground">Your creator page is already live.</p>
           <div className="flex gap-3">
-            <Link
-              href={`/${address}`}
-              className="inline-flex items-center px-6 py-3 rounded-xl bg-hush-600 hover:bg-hush-500 text-white font-medium transition-colors"
-            >
-              View Your Page
-            </Link>
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center px-6 py-3 rounded-xl border border-surface-700 hover:border-surface-500 text-surface-300 font-medium transition-colors"
-            >
-              Dashboard
-            </Link>
+            <Button asChild>
+              <Link href={`/${address}`}>View your page</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/dashboard">Dashboard</Link>
+            </Button>
           </div>
         </main>
       </div>
@@ -88,13 +106,9 @@ export default function CreatePage() {
       setStep(1);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Registration failed";
-      if (msg.includes("Already registered")) {
-        setError("This wallet is already registered as a creator.");
-      } else if (msg.includes("user rejected")) {
-        setError("Transaction was rejected.");
-      } else {
-        setError(msg);
-      }
+      if (msg.includes("Already registered")) setError("This wallet is already registered as a creator.");
+      else if (msg.includes("user rejected")) setError("Transaction was rejected.");
+      else setError(msg);
     } finally {
       setLoading(false);
     }
@@ -113,12 +127,7 @@ export default function CreatePage() {
           abi: HUSH_ABI,
           address: HUSH_CONTRACT_ADDRESS,
           functionName: "addTier",
-          args: [
-            tier.name,
-            BigInt(tier.price),
-            BigInt(tier.durationSecs),
-            tier.description,
-          ],
+          args: [tier.name, BigInt(tier.price), BigInt(tier.durationSecs), tier.description],
         });
       }
       queryClient.invalidateQueries({ queryKey: ["readContract"] });
@@ -132,154 +141,168 @@ export default function CreatePage() {
     }
   }
 
+  const shareUrl = address ? `${origin}/${address}` : "";
+
+  async function copyLink() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied", { description: shareUrl });
+    } catch {
+      toast.error("Could not copy");
+    }
+  }
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-1 flex flex-col items-center px-4 py-12">
-        <div className="w-full max-w-lg space-y-8">
-          <div className="flex gap-2 justify-center">
-            {["Profile", "Tiers", "Done"].map((label, i) => (
-              <div
-                key={i}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
+    <div className="flex min-h-[100dvh] flex-col">
+      <SiteHeader />
+      <main className="flex-1 py-12 md:py-16">
+        <Container size="narrow" className="space-y-10">
+          {/* Stepper */}
+          <ol className="flex items-center justify-center gap-2">
+            {STEPS.map((label, i) => (
+              <li
+                key={label}
+                className={cn(
+                  "flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm transition-colors",
                   i === step
-                    ? "bg-hush-600 text-white"
+                    ? "bg-primary text-primary-foreground"
                     : i < step
-                      ? "bg-hush-900/30 text-hush-400"
-                      : "bg-surface-800 text-surface-500"
-                }`}
+                      ? "bg-primary/10 text-ember-300"
+                      : "bg-muted text-muted-foreground",
+                )}
               >
-                <span className="w-5 h-5 flex items-center justify-center rounded-full bg-surface-950 text-xs">
-                  {i < step ? "✓" : i + 1}
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-background text-xs">
+                  {i < step ? <CheckIcon weight="bold" className="h-3 w-3" /> : i + 1}
                 </span>
                 {label}
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
 
-          {step === 0 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-2">Create your creator profile</h2>
-                <p className="text-surface-400">This is what your subscribers will see.</p>
-              </div>
-              <div className="space-y-4">
+          <AnimatePresence mode="wait" initial={false}>
+            {step === 0 && (
+              <motion.div
+                key="profile"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                className="space-y-6"
+              >
                 <div>
-                  <label className="block text-sm font-medium text-surface-300 mb-1">
-                    Display Name
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Your name or alias"
-                    className="w-full px-4 py-3 rounded-xl bg-surface-800 border border-surface-700 focus:border-hush-500 focus:outline-none text-surface-100 placeholder-surface-500"
-                  />
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground">Create your profile</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">This is what your subscribers will see.</p>
                 </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Display name</Label>
+                    <Input
+                      id="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Your name or alias"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Textarea
+                      id="bio"
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      placeholder="Tell your audience about yourself"
+                      rows={3}
+                    />
+                  </div>
+                  {error && (
+                    <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive-foreground/90">
+                      {error}
+                    </p>
+                  )}
+                  <Button onClick={handleRegister} disabled={loading || !name.trim()} size="lg" className="w-full">
+                    {loading ? "Registering" : "Continue"}
+                    {!loading && <ArrowRightIcon className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 1 && (
+              <motion.div
+                key="tiers"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                className="space-y-6"
+              >
                 <div>
-                  <label className="block text-sm font-medium text-surface-300 mb-1">Bio</label>
-                  <textarea
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    placeholder="Tell your audience about yourself..."
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl bg-surface-800 border border-surface-700 focus:border-hush-500 focus:outline-none text-surface-100 placeholder-surface-500 resize-none"
-                  />
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground">Create subscription tiers</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Add one or more tiers for your subscribers to choose from.
+                  </p>
                 </div>
+                <TierBuilder tiers={tiers} onChange={setTiers} />
                 {error && (
-                  <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-lg px-4 py-3">
+                  <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive-foreground/90">
                     {error}
                   </p>
                 )}
-                <button
-                  onClick={handleRegister}
-                  disabled={loading || !name.trim()}
-                  className="w-full py-3 rounded-xl bg-hush-600 hover:bg-hush-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-colors"
-                >
-                  {loading ? "Registering..." : "Continue"}
-                </button>
-              </div>
-            </div>
-          )}
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setStep(0)} className="flex-1">
+                    Back
+                  </Button>
+                  <Button onClick={handleAddTiers} disabled={loading} className="flex-1">
+                    {loading ? "Saving" : tiers.length === 0 ? "Skip" : "Continue"}
+                    {!loading && <ArrowRightIcon className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
 
-          {step === 1 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold mb-2">Create subscription tiers</h2>
-                <p className="text-surface-400">
-                  Add one or more tiers for your subscribers to choose from.
-                </p>
-              </div>
-              <TierBuilder tiers={tiers} onChange={setTiers} />
-              {error && (
-                <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-lg px-4 py-3">
-                  {error}
-                </p>
-              )}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setStep(0)}
-                  className="flex-1 py-3 rounded-xl border border-surface-700 hover:border-surface-500 text-surface-300 font-medium transition-colors"
+            {step === 2 && (
+              <motion.div
+                key="done"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                className="space-y-6 text-center"
+              >
+                <motion.div
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 140, damping: 14, delay: 0.05 }}
+                  className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/15 text-success"
                 >
-                  Back
-                </button>
-                <button
-                  onClick={handleAddTiers}
-                  disabled={loading}
-                  className="flex-1 py-3 rounded-xl bg-hush-600 hover:bg-hush-500 disabled:opacity-50 text-white font-medium transition-colors"
-                >
-                  {loading ? "Saving..." : tiers.length === 0 ? "Skip" : "Continue"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="text-center space-y-6">
-              <div className="text-4xl">🎉</div>
-              <div>
-                <h2 className="text-2xl font-bold mb-2">Your page is live!</h2>
-                <p className="text-surface-400">Share your link with your audience.</p>
-              </div>
-              <div className="p-4 rounded-xl bg-surface-800 border border-surface-700">
-                <p className="text-sm text-surface-400 mb-1">Your page:</p>
-                <p className="text-hush-400 font-mono text-sm break-all">
-                  hush.vercel.app/{address}
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(
-                      `https://hush.vercel.app/${address}`
-                    );
-                  }}
-                  className="flex-1 py-3 rounded-xl bg-hush-600 hover:bg-hush-500 text-white font-medium transition-colors"
-                >
-                  Copy Link
-                </button>
-                <button
-                  onClick={() => router.push(`/${address}`)}
-                  className="flex-1 py-3 rounded-xl border border-surface-700 hover:border-surface-500 text-surface-300 font-medium transition-colors"
-                >
-                  View Page
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+                  <CheckIcon weight="bold" className="h-8 w-8" />
+                </motion.div>
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground">Your page is live</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Share your link with your audience.</p>
+                </div>
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-card/60 p-3 text-left">
+                  <code className="flex-1 break-all font-mono text-sm text-ember-300">
+                    {origin}/{address}
+                  </code>
+                  <Button size="icon" variant="secondary" onClick={copyLink} aria-label="Copy link">
+                    <CopyIcon className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex gap-3">
+                  <Button onClick={copyLink} className="flex-1">
+                    <CopyIcon className="h-4 w-4" />
+                    Copy link
+                  </Button>
+                  <Button asChild variant="secondary" className="flex-1">
+                    <Link href={`/${address}`}>View page</Link>
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Container>
       </main>
+      <SiteFooter />
     </div>
-  );
-}
-
-function Header() {
-  return (
-    <header className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
-      <a href="/" className="text-xl font-bold text-gradient">
-        Hush
-      </a>
-      <ConnectButton />
-    </header>
   );
 }

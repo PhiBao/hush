@@ -3,13 +3,106 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* Hush — "Ink + Ember" dark-only palette.
+       Warm near-black backgrounds, bone text, single ember/amber accent.
+       One accent, locked page-wide. No pure black, no pure white. */
+    --background: 24 22% 4%; /* #0c0a09 */
+    --foreground: 36 38% 94%; /* #f5f1eb bone */
+
+    --card: 24 16% 7%; /* #14110f */
+    --card-foreground: 36 38% 94%;
+
+    --popover: 24 16% 7%;
+    --popover-foreground: 36 38% 94%;
+
+    --primary: 33 95% 44%; /* #d97706 ember */
+    --primary-foreground: 24 22% 4%;
+
+    --secondary: 28 14% 14%; /* #2a241e */
+    --secondary-foreground: 36 30% 88%;
+
+    --muted: 28 14% 11%; /* #1f1a15 */
+    --muted-foreground: 35 14% 62%; /* #a8a29e */
+
+    --accent: 28 14% 14%;
+    --accent-foreground: 36 30% 88%;
+
+    --destructive: 0 72% 41%; /* #b91c1c */
+    --destructive-foreground: 36 38% 94%;
+
+    --success: 142 72% 29%; /* #15803d */
+    --success-foreground: 36 38% 94%;
+
+    --warning: 38 92% 50%; /* #eab308 */
+    --warning-foreground: 24 22% 4%;
+
+    --border: 26 16% 15%; /* #2a2520 */
+    --input: 26 16% 18%;
+    --ring: 33 95% 44%; /* ember focus ring */
+
+    --radius: 0.75rem; /* 12px — cards; inputs use md(8), pills full */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
   body {
-    @apply bg-surface-950 text-surface-50 antialiased;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01", "cv01", "cv11";
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    @apply bg-primary/30 text-foreground;
+  }
+  /* Visible, consistent focus everywhere. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 }
 
 @layer utilities {
   .text-gradient {
-    @apply bg-gradient-to-r from-hush-400 to-hush-600 bg-clip-text text-transparent;
+    @apply bg-gradient-to-br from-ember-300 to-ember-500 bg-clip-text text-transparent;
+  }
+  .text-gradient-ember {
+    @apply bg-gradient-to-r from-ember-400 via-ember-300 to-ember-400 bg-clip-text text-transparent;
+  }
+  /* Cipher field: monospace, muted, the `••••••` brand motif. */
+  .cipher {
+    @apply font-mono tracking-[0.3em] text-muted-foreground;
+  }
+  .hairline {
+    @apply border-t border-border;
+  }
+  /* Subtle warm grain on a fixed, non-interactive pseudo layer (perf-safe). */
+  .grain::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .skeleton-shimmer {
+    @apply bg-[linear-gradient(90deg,hsl(var(--muted))_0%,hsl(var(--muted)_/_0.6)_40%,hsl(var(--muted))_80%)] bg-[length:200%_100%] animate-shimmer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -5,12 +5,22 @@ import { useParams } from "next/navigation";
 import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
-import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "../../../lib/contract";
-import { getPosts, Post } from "../../../lib/supabase";
+import { ArrowLeftIcon, KeyholeIcon, ShieldCheckIcon } from "@phosphor-icons/react";
+import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "@/lib/contract";
+import { getPosts, type Post } from "@/lib/supabase";
+import { SiteHeader } from "@/components/site/SiteHeader";
+import { SiteFooter } from "@/components/site/SiteFooter";
+import { Container } from "@/components/site/Container";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 
 interface GatedPost extends Post {
   gated?: boolean;
 }
+
+const ZERO = "0x0000000000000000000000000000000000000000" as `0x${string}`;
 
 export default function ContentPage() {
   const { creatorId } = useParams<{ creatorId: string }>();
@@ -37,7 +47,7 @@ export default function ContentPage() {
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
     functionName: "isSubscribed",
-    args: [creatorAddr, address ?? "0x0000000000000000000000000000000000000000"],
+    args: [creatorAddr, address ?? ZERO],
     query: { enabled: !!creatorAddr && !!address },
   });
 
@@ -45,7 +55,7 @@ export default function ContentPage() {
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
     functionName: "subscriptionTier",
-    args: [creatorAddr, address ?? "0x0000000000000000000000000000000000000000"],
+    args: [creatorAddr, address ?? ZERO],
     query: { enabled: !!creatorAddr && !!address },
   });
 
@@ -53,20 +63,14 @@ export default function ContentPage() {
   const [previews, setPreviews] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
 
-  const creatorName = (creator as [string, string, boolean])?.[0] || "this creator";
+  const creatorName = (creator as [string, string, boolean] | undefined)?.[0] || "this creator";
   const tierList = Array.isArray(tiers) ? tiers : [];
   const subscriberTier = subTier !== undefined ? Number(subTier) : -1;
 
-  // Load public previews (no full content).
   useEffect(() => {
-    if (creatorAddr) {
-      getPosts(creatorAddr).then((p) => {
-        setPreviews(p);
-      });
-    }
+    if (creatorAddr) getPosts(creatorAddr).then(setPreviews);
   }, [creatorAddr]);
 
-  // Load gated full content via server API (onchain-verified).
   useEffect(() => {
     if (!creatorAddr || !isConnected) {
       setLoadingPosts(false);
@@ -86,121 +90,118 @@ export default function ContentPage() {
       .catch(() => setLoadingPosts(false));
   }, [creatorAddr, isConnected, address]);
 
-  function formatDate(ts: string) {
-    return new Date(ts).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
-
   if (loadingCreator || checkingSub) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="animate-spin w-6 h-6 border-2 border-hush-500 border-t-transparent rounded-full" />
+      <div className="flex min-h-[100dvh] flex-col">
+        <SiteHeader />
+        <main className="flex flex-1 items-center justify-center">
+          <Skeleton className="h-8 w-8 rounded-full" />
         </main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-1 px-4 py-8">
-        <div className="max-w-xl mx-auto space-y-8">
+    <div className="flex min-h-[100dvh] flex-col">
+      <SiteHeader />
+
+      <main className="flex-1 py-12 md:py-16">
+        <Container size="default" className="max-w-2xl space-y-8">
           {!isConnected ? (
-            <div className="text-center py-20 space-y-4">
-              <p className="text-2xl">🔐</p>
-              <h1 className="text-xl font-bold">Connect to access content</h1>
-              <p className="text-surface-400 text-sm">This content is for subscribers only.</p>
+            <Gate
+              icon={<KeyholeIcon className="h-9 w-9" />}
+              title="Connect to access content"
+              body="This content is for subscribers only."
+            >
               <ConnectButton />
-            </div>
+            </Gate>
           ) : !isSubscribed ? (
-            <div className="text-center py-20 space-y-4">
-              <p className="text-2xl">🔐</p>
-              <h1 className="text-xl font-bold">Subscriber-only content</h1>
-              <p className="text-surface-400 text-sm max-w-sm mx-auto">
-                You need an active subscription to {creatorName} to access exclusive content.
-              </p>
-              <Link
-                href={`/${creatorId}`}
-                className="inline-flex items-center px-5 py-2.5 rounded-xl bg-hush-600 hover:bg-hush-500 text-white text-sm font-medium transition-colors"
-              >
-                Subscribe Now
-              </Link>
-            </div>
+            <Gate
+              icon={<KeyholeIcon className="h-9 w-9" />}
+              title="Subscriber-only content"
+              body={`You need an active subscription to ${creatorName} to access exclusive content.`}
+            >
+              <Button asChild>
+                <Link href={`/${creatorId}`}>Subscribe now</Link>
+              </Button>
+            </Gate>
           ) : (
             <>
-              <div className="text-center space-y-2">
-                <p className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-900/30 border border-green-800/50 text-green-400 text-xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+              <div className="space-y-3 text-center">
+                <Badge variant="success" className="mx-auto">
+                  <ShieldCheckIcon weight="fill" className="h-3 w-3" />
                   Subscribed
                   {tierList[subscriberTier] && (
-                    <span> &middot; {(tierList[subscriberTier] as { name: string }).name}</span>
+                    <span className="opacity-70">
+                      {" "}- {(tierList[subscriberTier] as { name: string }).name}
+                    </span>
                   )}
-                </p>
-                <h1 className="text-xl font-bold">{creatorName}&apos;s Content</h1>
-                <p className="text-[11px] text-surface-500">
+                </Badge>
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                  {creatorName}
+                </h1>
+                <p className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground/80">
+                  <ShieldCheckIcon className="h-3.5 w-3.5 text-ember-300" />
                   Access verified onchain. No content is sent to your browser unless your subscription is active.
                 </p>
               </div>
 
+              <Separator />
+
               {loadingPosts ? (
-                <div className="space-y-2">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="p-4 rounded-xl border border-surface-800 bg-surface-900/20 animate-pulse">
-                      <div className="h-4 w-3/4 bg-surface-800 rounded mb-2" />
-                      <div className="h-3 w-full bg-surface-800 rounded mb-1" />
-                      <div className="h-3 w-1/2 bg-surface-800 rounded" />
+                <div className="space-y-6">
+                  {[0, 1].map((i) => (
+                    <div key={i} className="space-y-2">
+                      <Skeleton className="h-5 w-3/4" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-2/3" />
                     </div>
                   ))}
                 </div>
               ) : posts.length === 0 && previews.length === 0 ? (
-                <div className="text-center py-16 space-y-3">
-                  <p className="text-3xl">📝</p>
-                  <p className="text-surface-400 text-sm">No posts yet.</p>
-                </div>
+                <p className="py-12 text-center text-sm text-muted-foreground">No posts yet.</p>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-10">
                   {posts.map((post) => (
-                    <article
-                      key={post.id}
-                      className={`p-5 rounded-xl border bg-surface-900/50 ${
-                        post.gated ? "border-surface-800" : "border-surface-700"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <h2 className="font-semibold text-[15px]">{post.title}</h2>
+                    <article key={post.id}>
+                      <div className="flex items-start justify-between gap-3">
+                        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                          {post.title}
+                        </h2>
                         {post.tier_index > 0 && (
-                          <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-hush-900/30 border border-hush-800/50 text-hush-400 ml-2 shrink-0">
+                          <span className="shrink-0 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                             {(tierList[post.tier_index] as { name: string })?.name || `Tier ${post.tier_index + 1}`}
                           </span>
                         )}
                       </div>
+
                       {post.gated ? (
-                        <div className="space-y-3">
-                          <p className="text-sm text-surface-500 italic">{post.preview || "Locked content."}</p>
-                          <div className="flex items-center gap-2 text-xs text-hush-400">
-                            <span>🔒</span>
-                            <span>
+                        <div className="mt-3 space-y-3">
+                          <p className="text-sm italic text-muted-foreground">
+                            {post.preview || "Locked content."}
+                          </p>
+                          <div className="flex items-center gap-3">
+                            <span className="inline-flex items-center gap-1.5 text-xs text-ember-300">
+                              <KeyholeIcon weight="fill" className="h-3.5 w-3.5" />
                               Upgrade to {(tierList[post.tier_index] as { name: string })?.name} to read this.
                             </span>
+                            <Button asChild size="sm" variant="secondary">
+                              <Link href={`/${creatorId}`}>Upgrade</Link>
+                            </Button>
                           </div>
-                          <Link
-                            href={`/${creatorId}`}
-                            className="inline-flex items-center px-4 py-2 rounded-lg bg-hush-600 hover:bg-hush-500 text-white text-xs font-medium transition-colors"
-                          >
-                            Upgrade
-                          </Link>
                         </div>
                       ) : (
                         <>
-                          <p className="text-sm text-surface-300 whitespace-pre-wrap leading-relaxed">
+                          <p className="mt-3 whitespace-pre-wrap text-[15px] leading-[1.75] text-foreground/90">
                             {post.content}
                           </p>
-                          <p className="text-[11px] text-surface-500 mt-4">{formatDate(post.created_at)}</p>
+                          <p className="mt-4 font-mono text-[11px] text-muted-foreground/70">
+                            {new Date(post.created_at).toLocaleDateString("en-US", {
+                              month: "long",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </p>
                         </>
                       )}
                     </article>
@@ -208,26 +209,45 @@ export default function ContentPage() {
                 </div>
               )}
 
-              <div className="text-center">
-                <Link href={`/${creatorId}`} className="text-hush-400 hover:text-hush-300 text-sm">
-                  &larr; Back to {creatorName}&apos;s page
-                </Link>
+              <div className="pt-4">
+                <Button asChild variant="ghost">
+                  <Link href={`/${creatorId}`}>
+                    <ArrowLeftIcon className="h-4 w-4" />
+                    Back to {creatorName}
+                  </Link>
+                </Button>
               </div>
             </>
           )}
-        </div>
+        </Container>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }
 
-function Header() {
+function Gate({
+  icon,
+  title,
+  body,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+  children: React.ReactNode;
+}) {
   return (
-    <header className="sticky top-0 z-40 bg-surface-950/80 backdrop-blur-sm flex items-center justify-between px-6 py-3 border-b border-surface-800">
-      <Link href="/" className="text-lg font-bold text-gradient">
-        Hush
-      </Link>
-      <ConnectButton />
-    </header>
+    <div className="flex flex-col items-center justify-center gap-5 py-24 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card text-ember-300">
+        {icon}
+      </div>
+      <div className="space-y-2">
+        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+        <p className="mx-auto max-w-sm text-sm text-muted-foreground">{body}</p>
+      </div>
+      {children}
+    </div>
   );
 }

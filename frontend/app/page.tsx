@@ -4,27 +4,70 @@ import { useState, useEffect, useMemo } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useReadContracts } from "wagmi";
 import Link from "next/link";
-import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "../lib/contract";
-import { getAllPosts, Post } from "../lib/supabase";
+import { ArrowRightIcon, SparkleIcon } from "@phosphor-icons/react";
+import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "@/lib/contract";
+import { getAllPosts, type Post } from "@/lib/supabase";
+import { SiteHeader } from "@/components/site/SiteHeader";
+import { SiteFooter } from "@/components/site/SiteFooter";
+import { Container } from "@/components/site/Container";
+import { Reveal } from "@/components/site/Reveal";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { HeroDecryptPreview } from "@/components/creator/HeroDecryptPreview";
+import { PrivateEstimator } from "@/components/creator/PrivateEstimator";
+import { PostCard } from "@/components/creator/PostCard";
+import { cn } from "@/lib/utils";
+
+const CREATOR_TYPES = [
+  {
+    name: "Writers",
+    blurb: "Essays, newsletters, serialised fiction. Paid readers, private income.",
+    img: "https://picsum.photos/seed/hush-writer-desk/640/480",
+    span: "md:col-span-2 md:row-span-2",
+  },
+  {
+    name: "Artists",
+    blurb: "Studios, illustrators, print drops.",
+    img: "https://picsum.photos/seed/hush-artist-studio/640/480",
+    span: "",
+  },
+  {
+    name: "Podcasters",
+    blurb: "Bonus episodes, private feeds.",
+    img: "https://picsum.photos/seed/hush-podcast-mic/640/480",
+    span: "",
+  },
+  {
+    name: "Musicians",
+    blurb: "Releases, stems, patronage.",
+    img: "https://picsum.photos/seed/hush-musician-amber/640/480",
+    span: "",
+  },
+  {
+    name: "Indie devs",
+    blurb: "Build in public, fund the work.",
+    img: "https://picsum.photos/seed/hush-dev-terminal/640/480",
+    span: "md:col-span-2",
+  },
+] as const;
 
 export default function Home() {
   const { address, isConnected } = useAccount();
 
   const { data: existingCreator } = useReadContracts({
     contracts: isConnected && address
-      ? [
-          {
-            abi: HUSH_ABI,
-            address: HUSH_CONTRACT_ADDRESS,
-            functionName: "creators",
-            args: [address],
-          } as const,
-        ]
+      ? [{
+          abi: HUSH_ABI,
+          address: HUSH_CONTRACT_ADDRESS,
+          functionName: "creators",
+          args: [address],
+        } as const]
       : [],
     query: { enabled: !!address },
   });
-
-  const isRegistered = (existingCreator?.[0]?.result as [string, string, boolean])?.[2] ?? false;
+  const isRegistered =
+    (existingCreator?.[0]?.result as [string, string, boolean] | undefined)?.[2] ?? false;
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,21 +79,19 @@ export default function Home() {
     });
   }, []);
 
-  const uniqueCreators = useMemo(() => {
-    return [...new Set(posts.map((p) => p.creator_address.toLowerCase()))];
-  }, [posts]);
+  const uniqueCreators = useMemo(
+    () => [...new Set(posts.map((p) => p.creator_address.toLowerCase()))],
+    [posts],
+  );
 
   const { data: subResults } = useReadContracts({
     contracts: isConnected && address
-      ? uniqueCreators.map(
-          (creatorAddr) =>
-            ({
-              abi: HUSH_ABI,
-              address: HUSH_CONTRACT_ADDRESS,
-              functionName: "isSubscribed",
-              args: [creatorAddr as `0x${string}`, address],
-            } as const)
-        )
+      ? uniqueCreators.map((creatorAddr) => ({
+          abi: HUSH_ABI,
+          address: HUSH_CONTRACT_ADDRESS,
+          functionName: "isSubscribed",
+          args: [creatorAddr as `0x${string}`, address],
+        } as const))
       : [],
     query: { enabled: uniqueCreators.length > 0 },
   });
@@ -59,204 +100,230 @@ export default function Home() {
     const set = new Set<string>();
     if (subResults && uniqueCreators.length > 0) {
       uniqueCreators.forEach((creatorAddr, i) => {
-        if (subResults[i]?.result === true) {
-          set.add(creatorAddr);
-        }
+        if (subResults[i]?.result === true) set.add(creatorAddr);
       });
     }
     return set;
   }, [subResults, uniqueCreators]);
 
-  function formatDate(ts: string) {
-    return new Date(ts).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
+  const heroPrimary = !isConnected ? (
+    <ConnectButton.Custom>
+      {({ openConnectModal }) => (
+        <Button size="lg" onClick={openConnectModal}>
+          <SparkleIcon className="h-4 w-4" />
+          Connect wallet
+        </Button>
+      )}
+    </ConnectButton.Custom>
+  ) : isRegistered ? (
+    <Button asChild size="lg">
+      <Link href="/dashboard">Go to dashboard <ArrowRightIcon className="h-4 w-4" /></Link>
+    </Button>
+  ) : (
+    <Button asChild size="lg">
+      <Link href="/create">Become a creator <ArrowRightIcon className="h-4 w-4" /></Link>
+    </Button>
+  );
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-40 bg-surface-950/80 backdrop-blur-sm flex items-center justify-between px-6 py-3 border-b border-surface-800">
-        <Link href="/" className="text-lg font-bold text-gradient">
-          Hush
-        </Link>
-        <nav className="flex items-center gap-3">
-          {isConnected && (
-            <Link
-              href="/my-subs"
-              className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
-            >
-              My Subs
-            </Link>
-          )}
-          {isConnected && isRegistered && (
-            <Link
-              href="/dashboard"
-              className="text-sm text-surface-400 hover:text-surface-200 transition-colors"
-            >
-              Dashboard
-            </Link>
-          )}
-          <ConnectButton />
-        </nav>
-      </header>
+    <div className="flex min-h-[100dvh] flex-col">
+      <SiteHeader />
 
-      <main className="flex-1 px-4 py-8">
-        <div className="max-w-xl mx-auto space-y-10">
-          {/* Hero */}
-          <div className="text-center space-y-4 pt-4">
-            <h1 className="text-4xl font-bold">
-              <span className="text-gradient">Hush</span>
+      {/* 1. Hero - asymmetric split, real component preview on the right. */}
+      <section className="relative overflow-hidden border-b border-border">
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute -top-32 right-0 h-[520px] w-[520px] rounded-full bg-primary/10 blur-[140px]" />
+        </div>
+        <Container size="full" className="grid items-center gap-10 py-20 md:grid-cols-[1.05fr_0.95fr] md:py-28 lg:py-32">
+          <div className="max-w-xl">
+            <h1 className="text-4xl font-semibold leading-[1.05] tracking-tighter text-foreground md:text-6xl">
+              Your income, off the public ledger.
             </h1>
-            <p className="text-surface-300 text-base max-w-sm mx-auto leading-relaxed">
-              Creator subscriptions with encrypted payments.
-              Support who you want — nobody sees how much.
+            <p className="mt-5 max-w-[52ch] text-base leading-relaxed text-muted-foreground md:text-lg">
+              Subscription payments encrypted onchain. Only you can decrypt your
+              total. Your supporters stay private.
             </p>
-            <p className="text-surface-500 text-xs max-w-md mx-auto leading-relaxed">
-              Built on the Zama Protocol. Your payment is encrypted in your browser,
-              computed onchain as ciphertext, and decrypted only by the creator.
-            </p>
-
-            {/* The privacy contrast */}
-            <div className="grid grid-cols-2 gap-3 pt-2 max-w-md mx-auto">
-              <div className="p-4 rounded-xl border border-red-900/40 bg-red-950/20 text-left">
-                <p className="text-[11px] uppercase tracking-wider text-red-400 mb-1">Today</p>
-                <p className="text-sm text-surface-400">
-                  Every onchain tip is <span className="text-red-300">public forever</span>.
-                  Anyone can see who paid whom and how much.
-                </p>
-              </div>
-              <div className="p-4 rounded-xl border border-hush-800/40 bg-hush-950/20 text-left">
-                <p className="text-[11px] uppercase tracking-wider text-hush-400 mb-1">Hush</p>
-                <p className="text-sm text-surface-400">
-                  Payments are <span className="text-hush-300">encrypted onchain</span>.
-                  Only the creator decrypts their total. Nobody else sees anything.
-                </p>
-              </div>
+            <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+              {heroPrimary}
+              <Button asChild variant="ghost" size="lg">
+                <Link href="#feed">Explore</Link>
+              </Button>
             </div>
-
-            {!isConnected && (
-              <div className="pt-4">
-                <ConnectButton />
-              </div>
-            )}
-            {isConnected && !isRegistered && (
-              <div className="pt-4">
-                <Link
-                  href="/create"
-                  className="inline-flex items-center px-6 py-2.5 rounded-xl bg-hush-600 hover:bg-hush-500 text-white text-sm font-medium transition-colors"
-                >
-                  Become a Creator
-                </Link>
-              </div>
-            )}
           </div>
 
-          {/* Feed */}
-          <section className="space-y-2">
-            <h2 className="text-xs font-medium text-surface-500 uppercase tracking-wider px-1">
+          <Reveal delay={0.15} className="md:justify-self-end md:w-full md:max-w-md">
+            <HeroDecryptPreview />
+          </Reveal>
+        </Container>
+      </section>
+
+      {/* 2. Privacy contrast - full-width two halves. Different layout family. */}
+      <section className="border-b border-border bg-muted/20">
+        <Container size="full" className="grid md:grid-cols-2">
+          <div className="border-b border-border p-8 md:border-b-0 md:border-r md:p-12">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-destructive-foreground/70">
+              Today
+            </p>
+            <p className="mt-3 text-xl font-medium leading-snug text-foreground/80">
+              Every onchain tip is <span className="text-destructive-foreground/90">public forever</span>.
+              Anyone can see who paid whom, and how much.
+            </p>
+          </div>
+          <div className="p-8 md:p-12">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-ember-300">
+              Hush
+            </p>
+            <p className="mt-3 text-xl font-medium leading-snug text-foreground">
+              Payments are <span className="text-ember-300">encrypted onchain</span>.
+              Only the creator decrypts their total. Nobody else sees anything.
+            </p>
+          </div>
+        </Container>
+      </section>
+
+      {/* 3. Creator-type bento - asymmetric, real images, exact cell count. */}
+      <section className="py-20 md:py-28">
+        <Container size="full">
+          <div className="mb-10 max-w-xl">
+            <h2 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+              Built for every kind of creator.
+            </h2>
+            <p className="mt-3 text-base text-muted-foreground">
+              If you make things people love, you can get paid for it without
+              putting your income on display.
+            </p>
+          </div>
+
+          <div className="grid auto-rows-[200px] grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
+            {CREATOR_TYPES.map((c) => (
+              <Reveal
+                key={c.name}
+                className={cn(
+                  "group relative overflow-hidden rounded-2xl border border-border bg-card",
+                  c.span,
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={c.img}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover opacity-50 grayscale transition-all duration-500 ease-ember group-hover:opacity-70 group-hover:grayscale-0"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/10" />
+                <div className="relative flex h-full flex-col justify-end p-5">
+                  <h3 className="text-lg font-semibold text-foreground">{c.name}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground max-w-[34ch]">{c.blurb}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </Container>
+      </section>
+
+      {/* 4. Private estimator - centered interactive. Different layout family. */}
+      <section className="border-y border-border bg-muted/20 py-20 md:py-28">
+        <Container size="narrow">
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+              What could you earn?
+            </h2>
+            <p className="mt-3 text-base text-muted-foreground">
+              Drag to estimate. The number stays private until you do.
+            </p>
+          </div>
+          <PrivateEstimator ctaHref={isConnected && !isRegistered ? "/create" : "/create"} />
+        </Container>
+      </section>
+
+      {/* 5. Feed - editorial list, divide-y. Different layout family. */}
+      <section id="feed" className="py-20 md:py-28 scroll-mt-20">
+        <Container size="narrow">
+          <div className="mb-8 flex items-end justify-between">
+            <h2 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
               Latest
             </h2>
+            <span className="font-mono text-xs text-muted-foreground">
+              {posts.length} {posts.length === 1 ? "post" : "posts"}
+            </span>
+          </div>
 
-            {loading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="p-4 rounded-xl border border-surface-800 bg-surface-900/20 animate-pulse"
-                  >
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-7 h-7 rounded-full bg-surface-800" />
-                      <div className="h-3 w-24 bg-surface-800 rounded" />
-                    </div>
-                    <div className="h-4 w-3/4 bg-surface-800 rounded mb-2" />
-                    <div className="h-3 w-full bg-surface-800 rounded mb-1" />
-                    <div className="h-3 w-1/2 bg-surface-800 rounded" />
-                  </div>
-                ))}
-              </div>
-            ) : posts.length === 0 ? (
-              <div className="text-center py-16 space-y-4">
-                <p className="text-3xl">📝</p>
-                <div>
-                  <p className="text-surface-300 font-medium">No posts yet</p>
-                  <p className="text-surface-500 text-sm mt-1">
-                    Be the first creator to share something with your audience.
-                  </p>
+          {loading ? (
+            <div className="space-y-5">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="space-y-2 py-5">
+                  <Skeleton className="h-3 w-40" />
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-3 w-full" />
                 </div>
-                <Link
-                  href="/create"
-                  className="inline-flex items-center px-5 py-2.5 rounded-lg bg-hush-600 hover:bg-hush-500 text-white text-sm font-medium transition-colors"
-                >
-                  Create Your Page
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {posts.map((post) => {
-                  const creatorAddr = post.creator_address.toLowerCase();
-                  const isSubbed = subscribedCreators.has(creatorAddr);
-                  const displayName =
-                    post.creator_name || `${creatorAddr.slice(0, 6)}...${creatorAddr.slice(-4)}`;
-                  const previewText = post.preview || post.content;
+              ))}
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-card/40 py-20 text-center">
+              <p className="text-lg font-medium text-foreground">No posts yet</p>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                Be the first creator to share something with your audience.
+              </p>
+              <Button asChild className="mt-6">
+                <Link href="/create">Create your page <ArrowRightIcon className="h-4 w-4" /></Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {posts.slice(0, 12).map((post) => {
+                const creatorAddr = post.creator_address.toLowerCase();
+                const isSubbed = subscribedCreators.has(creatorAddr);
+                return (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    href={isSubbed ? `/${post.creator_address}/content` : `/${post.creator_address}`}
+                    unlocked={isSubbed && post.tier_index === 0}
+                    tierName={post.tier_index > 0 ? `Tier ${post.tier_index + 1}` : undefined}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </Container>
+      </section>
 
-                  return (
-                    <Link
-                      key={post.id}
-                      href={isSubbed ? `/${post.creator_address}/content` : `/${post.creator_address}`}
-                      className="block"
-                    >
-                      <div
-                        className={`relative p-4 rounded-xl border transition-all ${
-                          isSubbed
-                            ? "border-surface-700 bg-surface-900/50 hover:border-hush-500/30 hover:bg-surface-900/70"
-                            : "border-surface-800 bg-surface-900/20 hover:border-surface-700"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-hush-500 to-hush-700 flex items-center justify-center text-[11px] font-bold shrink-0">
-                            {displayName.charAt(0)}
-                          </div>
-                          <span className="text-sm font-medium text-surface-200 truncate">
-                            {displayName}
-                          </span>
-                          <span className="text-[11px] text-surface-500 shrink-0">
-                            {formatDate(post.created_at)}
-                          </span>
-                          {post.tier_index > 0 && (
-                            <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-hush-900/30 border border-hush-800/50 text-hush-400 ml-auto">
-                              Tier {post.tier_index + 1}
-                            </span>
-                          )}
-                        </div>
+      {/* 6. How it works - vertical steps with hairlines. Different layout family. */}
+      <section className="border-t border-border bg-muted/20 py-20 md:py-28">
+        <Container size="narrow">
+          <h2 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+            Private by design.
+          </h2>
+          <ol className="mt-10 divide-y divide-border">
+            {[
+              {
+                t: "Shield",
+                d: "Supporters convert USDT to encrypted cUSDT in their browser. The amount never leaves as plaintext.",
+              },
+              {
+                t: "Encrypt",
+                d: "The payment amount is encrypted client-side via the Zama relayer and submitted onchain as ciphertext.",
+              },
+              {
+                t: "Decrypt",
+                d: "Hush sums the ciphertext onchain with FHE. Only the creator can decrypt their own aggregate total.",
+              },
+            ].map((s, i) => (
+              <li key={s.t} className="flex gap-5 py-6">
+                <span className="font-mono text-sm text-ember-300 tabular-nums">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">{s.t}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground max-w-[60ch] leading-relaxed">{s.d}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </Container>
+      </section>
 
-                        <h3 className="font-semibold text-surface-100 text-[15px] mb-1">
-                          {post.title}
-                        </h3>
-                        <p className="text-sm text-surface-400 line-clamp-2 leading-relaxed">
-                          {previewText || "Subscribe to read this post."}
-                        </p>
-
-                        {!isSubbed && post.tier_index > 0 && (
-                          <div className="mt-3 flex items-center gap-1.5 text-[11px] text-hush-400">
-                            <span>🔒</span>
-                            <span>Subscribe to unlock</span>
-                          </div>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        </div>
-      </main>
-
-      <footer className="text-center text-surface-600 text-[11px] py-6 border-t border-surface-800/50">
-        Private payments &middot; Encrypted on Zama fhEVM &middot; Confidential payroll for the creator economy
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

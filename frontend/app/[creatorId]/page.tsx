@@ -2,20 +2,26 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { motion, AnimatePresence } from "motion/react";
 import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
-import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "../../lib/contract";
-import { TierCard } from "../../components/TierCard";
-import { SubscribeModal } from "../../components/SubscribeModal";
-import { getPosts, Post } from "../../lib/supabase";
+import { ArrowRightIcon, KeyholeIcon } from "@phosphor-icons/react";
+import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "@/lib/contract";
+import { getPosts, type Post } from "@/lib/supabase";
+import { SiteHeader } from "@/components/site/SiteHeader";
+import { SiteFooter } from "@/components/site/SiteFooter";
+import { Container } from "@/components/site/Container";
+import { Reveal } from "@/components/site/Reveal";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CreatorAvatar } from "@/components/creator/CreatorAvatar";
+import { TierCard, type TierData } from "@/components/creator/TierCard";
+import { SubscribeModal } from "@/components/creator/SubscribeModal";
+import { cn } from "@/lib/utils";
 
-interface TierData {
-  name: string;
-  price: string;
-  durationSecs: string;
-  description: string;
-}
+const ZERO = "0x0000000000000000000000000000000000000000" as `0x${string}`;
 
 export default function CreatorPage() {
   const { creatorId } = useParams<{ creatorId: string }>();
@@ -52,7 +58,7 @@ export default function CreatorPage() {
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
     functionName: "isSubscribed",
-    args: [creatorAddr, address ?? "0x0000000000000000000000000000000000000000"],
+    args: [creatorAddr, address ?? ZERO],
     query: { enabled: !!creatorAddr && !!address },
   });
 
@@ -60,17 +66,19 @@ export default function CreatorPage() {
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
     functionName: "subscriptionTier",
-    args: [creatorAddr, address ?? "0x0000000000000000000000000000000000000000"],
+    args: [creatorAddr, address ?? ZERO],
     query: { enabled: !!creatorAddr && !!address },
   });
 
-  const creatorName = (creator as [string, string, boolean])?.[0] || "";
-  const creatorBio = (creator as [string, string, boolean])?.[1] || "";
-  const isRegistered = (creator as [string, string, boolean])?.[2] || false;
+  const creatorName = (creator as [string, string, boolean] | undefined)?.[0] || "";
+  const creatorBio = (creator as [string, string, boolean] | undefined)?.[1] || "";
+  const isRegistered = (creator as [string, string, boolean] | undefined)?.[2] || false;
   const subscribed = isSubscribed || localSubscribed;
   const subscriberTierIndex = subTier !== undefined ? Number(subTier) : -1;
 
-  const tierList: TierData[] = Array.isArray(tiers) ? (tiers as unknown as TierData[]) : [];
+  const tierList: TierData[] = Array.isArray(tiers)
+    ? (tiers as unknown as TierData[])
+    : [];
 
   useEffect(() => {
     if (isSubscribed) setLocalSubscribed(true);
@@ -85,14 +93,6 @@ export default function CreatorPage() {
     }
   }, [creatorAddr]);
 
-  function formatDate(ts: string) {
-    return new Date(ts).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }
-
   function canViewPost(post: Post) {
     return subscribed && post.tier_index <= subscriberTierIndex;
   }
@@ -103,10 +103,10 @@ export default function CreatorPage() {
 
   if (loadingCreator) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="animate-spin w-6 h-6 border-2 border-hush-500 border-t-transparent rounded-full" />
+      <div className="flex min-h-[100dvh] flex-col">
+        <SiteHeader />
+        <main className="flex flex-1 items-center justify-center">
+          <Skeleton className="h-8 w-8 rounded-full" />
         </main>
       </div>
     );
@@ -114,15 +114,15 @@ export default function CreatorPage() {
 
   if (!isRegistered) {
     return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1 flex flex-col items-center justify-center gap-4 px-4">
-          <p className="text-2xl">🔍</p>
-          <h1 className="text-xl font-bold">Creator not found</h1>
-          <p className="text-surface-400 text-sm">This address hasn&apos;t registered on Hush yet.</p>
-          <Link href="/" className="text-hush-400 hover:text-hush-300 text-sm">
-            Back to feed
-          </Link>
+      <div className="flex min-h-[100dvh] flex-col">
+        <SiteHeader />
+        <main className="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
+          <KeyholeIcon className="h-10 w-10 text-muted-foreground" />
+          <h1 className="text-xl font-semibold text-foreground">Creator not found</h1>
+          <p className="text-sm text-muted-foreground">This address has not registered on Hush yet.</p>
+          <Button asChild variant="ghost">
+            <Link href="/">Back to feed</Link>
+          </Button>
         </main>
       </div>
     );
@@ -130,143 +130,175 @@ export default function CreatorPage() {
 
   const hasPosts = posts.length > 0;
   const hasTiers = tierList.length > 0;
+  const featuredIndex = tierList.length >= 3 ? Math.floor(tierList.length / 2) : -1;
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-1 px-4 py-12">
-        <div className="w-full max-w-xl mx-auto space-y-8">
-          <div className="text-center space-y-3">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-hush-500 to-hush-700 mx-auto flex items-center justify-center text-2xl font-bold">
-              {creatorName.charAt(0)}
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">{creatorName}</h1>
-              {creatorBio && (
-                <p className="text-surface-400 text-sm max-w-sm mx-auto mt-1">{creatorBio}</p>
-              )}
-            </div>
-            {subscribed && address && (
-              <p className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-900/30 border border-green-800/50 text-green-400 text-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                Subscribed
-                {tierList[subscriberTierIndex] && (
-                  <span> &middot; {(tierList[subscriberTierIndex] as { name: string }).name}</span>
-                )}
-              </p>
-            )}
-          </div>
+    <div className="flex min-h-[100dvh] flex-col">
+      <SiteHeader />
 
+      <main className="flex-1 py-12 md:py-16">
+        <Container size="narrow" className="space-y-12">
+          {/* Creator header - left-aligned, publication feel. */}
+          <Reveal className="flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <CreatorAvatar nameOrAddress={creatorName || creatorAddr} size={72} />
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                  {creatorName}
+                </h1>
+                {creatorBio && (
+                  <p className="mt-1.5 max-w-md text-sm text-muted-foreground leading-relaxed">
+                    {creatorBio}
+                  </p>
+                )}
+                {subscribed && (
+                  <Badge variant="success" className="mt-3">
+                    Subscribed
+                    {tierList[subscriberTierIndex] && (
+                      <span className="opacity-70">
+                        {" "}- {(tierList[subscriberTierIndex] as { name: string }).name}
+                      </span>
+                    )}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {subscribed && address && (
+              <Button asChild>
+                <Link href={`/${creatorId}/content`}>
+                  View all content <ArrowRightIcon className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+          </Reveal>
+
+          {/* Posts */}
           {hasPosts && (
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium text-surface-400 px-1">Posts</h2>
+            <section className="space-y-4">
+              <h2 className="text-sm font-medium text-muted-foreground">Posts</h2>
               {loadingPosts ? (
-                <div className="space-y-2">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="p-4 rounded-xl border border-surface-800 bg-surface-900/20 animate-pulse">
-                      <div className="h-4 w-3/4 bg-surface-800 rounded mb-2" />
-                      <div className="h-3 w-full bg-surface-800 rounded mb-1" />
-                      <div className="h-3 w-1/2 bg-surface-800 rounded" />
+                <div className="space-y-4">
+                  {[0, 1].map((i) => (
+                    <div key={i} className="space-y-2 py-4">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-1/2" />
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {posts.map((post) => {
-                    const viewable = canViewPost(post);
-                    return (
-                      <div
-                        key={post.id}
-                        className={`relative p-4 rounded-xl border transition-colors ${
-                          viewable
-                            ? "border-surface-700 bg-surface-900/50 hover:border-hush-500/30"
-                            : "border-surface-800 bg-surface-900/20"
-                        }`}
-                      >
-                        {viewable ? (
-                          <>
-                            <div className="flex items-start justify-between mb-2">
-                              <h3 className="font-semibold text-[15px]">{post.title}</h3>
-                              {post.tier_index > 0 && (
-                                <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-hush-900/30 border border-hush-800/50 text-hush-400 ml-2 shrink-0">
-                                  {(tierList[post.tier_index] as { name: string })?.name || `Tier ${post.tier_index + 1}`}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-surface-300 whitespace-pre-wrap leading-relaxed">
-                              {post.content}
-                            </p>
-                            <p className="text-[11px] text-surface-500 mt-3">
-                              {formatDate(post.created_at)}
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <div className="space-y-1">
-                              <h3 className="font-semibold text-[15px] mb-1">{post.title}</h3>
-                              <p className="text-sm text-surface-400 line-clamp-2 leading-relaxed">
+                <div className="divide-y divide-border">
+                  <AnimatePresence>
+                    {posts.map((post) => {
+                      const viewable = canViewPost(post);
+                      const tierName =
+                        (tierList[post.tier_index] as { name: string } | undefined)?.name ||
+                        `Tier ${post.tier_index + 1}`;
+                      return (
+                        <article key={post.id} className="py-6">
+                          <div className="flex items-start justify-between gap-3">
+                            <h3 className="text-lg font-semibold tracking-tight text-foreground">
+                              {post.title}
+                            </h3>
+                            {post.tier_index > 0 && (
+                              <span className="shrink-0 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                {tierName}
+                              </span>
+                            )}
+                          </div>
+
+                          {viewable ? (
+                            <>
+                              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90 max-w-[65ch]">
+                                {post.content}
+                              </p>
+                              <p className="mt-3 font-mono text-[11px] text-muted-foreground/70">
+                                {new Date(post.created_at).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                              </p>
+                            </>
+                          ) : (
+                            <div className="mt-3 space-y-3">
+                              <p className="text-sm leading-relaxed text-muted-foreground line-clamp-2 max-w-[65ch]">
                                 {previewText(post) || "Subscribe to read this post."}
                               </p>
-                            </div>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-surface-950/70">
-                              <p className="text-xs text-surface-300">
-                                {isConnected
-                                  ? `Subscribe to unlock ${(tierList[post.tier_index] as { name: string })?.name || "this"} content`
-                                  : "Connect to subscribe"}
-                              </p>
-                              {!isConnected ? (
-                                <div onClick={(e) => e.stopPropagation()}>
+                              <div className="flex flex-wrap items-center gap-3">
+                                <span className="inline-flex items-center gap-1.5 text-xs text-ember-300">
+                                  <KeyholeIcon weight="fill" className="h-3.5 w-3.5" />
+                                  {isConnected
+                                    ? `Subscribe to unlock ${tierName}`
+                                    : "Connect to subscribe"}
+                                </span>
+                                {!isConnected ? (
                                   <ConnectButton />
-                                </div>
-                              ) : !subscribed ? (
-                                <button
-                                  onClick={() => {
-                                    setSelectedTier({
-                                      name: tierList[post.tier_index]?.name || `Tier ${post.tier_index + 1}`,
-                                      price: tierList[post.tier_index]?.price || "0",
-                                      index: post.tier_index,
-                                    });
-                                    setShowSubscribe(true);
-                                  }}
-                                  className="px-4 py-2 rounded-lg bg-hush-600 hover:bg-hush-500 text-white text-xs font-medium transition-colors"
-                                >
-                                  Subscribe
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    setSelectedTier({
-                                      name: tierList[post.tier_index]?.name || `Tier ${post.tier_index + 1}`,
-                                      price: tierList[post.tier_index]?.price || "0",
-                                      index: post.tier_index,
-                                    });
-                                    setShowSubscribe(true);
-                                  }}
-                                  className="px-4 py-2 rounded-lg bg-hush-600 hover:bg-hush-500 text-white text-xs font-medium transition-colors"
-                                >
-                                  Upgrade to{" "}
-                                  {(tierList[post.tier_index] as { name: string })?.name || `Tier ${post.tier_index + 1}`}
-                                </button>
-                              )}
+                                ) : !subscribed ? (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedTier({
+                                        name: tierName,
+                                        price: (tierList[post.tier_index] as { price: string })?.price || "0",
+                                        index: post.tier_index,
+                                      });
+                                      setShowSubscribe(true);
+                                    }}
+                                  >
+                                    Subscribe
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => {
+                                      setSelectedTier({
+                                        name: tierName,
+                                        price: (tierList[post.tier_index] as { price: string })?.price || "0",
+                                        index: post.tier_index,
+                                      });
+                                      setShowSubscribe(true);
+                                    }}
+                                  >
+                                    Upgrade to {tierName}
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
+                          )}
+                        </article>
+                      );
+                    })}
+                  </AnimatePresence>
                 </div>
               )}
             </section>
           )}
 
+          {/* Tiers */}
           {hasTiers && (
-            <section className="space-y-4">
-              <h2 className="text-sm font-medium text-surface-400 px-1">Support {creatorName}</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <section className="space-y-5">
+              <h2 className="text-sm font-medium text-muted-foreground">
+                Support {creatorName}
+              </h2>
+              <div
+                className={cn(
+                  "grid gap-4",
+                  tierList.length === 1
+                    ? "grid-cols-1 sm:max-w-sm"
+                    : tierList.length === 2
+                      ? "grid-cols-1 sm:grid-cols-2"
+                      : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3",
+                )}
+              >
                 {tierList.map((tier, i) => (
                   <TierCard
                     key={i}
                     tier={tier}
+                    index={i}
+                    featured={i === featuredIndex}
                     disabled={!isConnected}
                     onSubscribe={() => {
                       setSelectedTier({ name: tier.name, price: tier.price, index: i });
@@ -279,24 +311,15 @@ export default function CreatorPage() {
           )}
 
           {!isConnected && (
-            <div className="text-center pb-4">
-              <p className="text-surface-400 text-sm mb-3">Connect your wallet to subscribe</p>
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-card/40 py-12 text-center">
+              <p className="text-sm text-muted-foreground">Connect your wallet to subscribe</p>
               <ConnectButton />
             </div>
           )}
-
-          {subscribed && address && (
-            <div className="text-center">
-              <Link
-                href={`/${creatorId}/content`}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-hush-600 hover:bg-hush-500 text-white text-sm font-medium transition-colors"
-              >
-                View all content &rarr;
-              </Link>
-            </div>
-          )}
-        </div>
+        </Container>
       </main>
+
+      <SiteFooter />
 
       {selectedTier && (
         <SubscribeModal
@@ -310,16 +333,5 @@ export default function CreatorPage() {
         />
       )}
     </div>
-  );
-}
-
-function Header() {
-  return (
-    <header className="sticky top-0 z-40 bg-surface-950/80 backdrop-blur-sm flex items-center justify-between px-6 py-3 border-b border-surface-800">
-      <Link href="/" className="text-lg font-bold text-gradient">
-        Hush
-      </Link>
-      <ConnectButton />
-    </header>
   );
 }

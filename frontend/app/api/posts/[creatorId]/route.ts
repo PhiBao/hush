@@ -19,7 +19,7 @@ const client = createPublicClient({ chain: sepolia, transport: http(RPC) });
  * Returns full post `content` only for posts whose `tier_index` is at or below
  * the caller's verified onchain subscription tier. Posts above the tier
  * return only `title` + `preview` (no `content`). Unsubscribed callers get
- * previews only. The onchain contract — not a platform key — decides access.
+ * previews only. The onchain contract - not a platform key - decides access.
  */
 export async function GET(
   _req: NextRequest,
@@ -63,7 +63,7 @@ export async function GET(
         );
       }
     } catch {
-      // Onchain read failed — fail closed (treat as unsubscribed).
+      // Onchain read failed - fail closed (treat as unsubscribed).
       isSubbed = false;
     }
   }
