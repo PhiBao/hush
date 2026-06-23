@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body className="grain min-h-[100dvh]">
+      <body className="grain min-h-[100dvh]" suppressHydrationWarning>
         <Providers>
           <SiteShell>{children}</SiteShell>
         </Providers>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
-import { useAccount, useWriteContract, useReadContract } from "wagmi";
+import { useAccount, useWriteContract, useReadContract, usePublicClient } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEncrypt } from "@zama-fhe/react-sdk";
 import {
@@ -89,11 +89,13 @@ export function SubscribeModal({
 }: SubscribeModalProps) {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
   const queryClient = useQueryClient();
   const encryptMutation = useEncrypt();
 
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState("");
+  const [errorDetail, setErrorDetail] = useState("");
   const [txHash, setTxHash] = useState("");
 
   const { data: isOperator } = useReadContract({
@@ -137,7 +139,7 @@ export function SubscribeModal({
           functionName: "mint",
           args: [address, needed],
         });
-        await waitForTx(writeContractAsync, mintTx);
+        await waitForTx(publicClient, mintTx as `0x${string}`);
       }
 
       setStep("approving-wrap");
@@ -147,7 +149,7 @@ export function SubscribeModal({
         functionName: "approve",
         args: [PAYMENT_TOKEN, paymentAmount],
       });
-      await waitForTx(writeContractAsync, approveTx);
+      await waitForTx(publicClient, approveTx as `0x${string}`);
 
       setStep("shielding");
       const wrapTx = await writeContractAsync({
@@ -156,7 +158,7 @@ export function SubscribeModal({
         functionName: "wrap",
         args: [address, paymentAmount],
       });
-      await waitForTx(writeContractAsync, wrapTx);
+      await waitForTx(publicClient, wrapTx as `0x${string}`);
 
       if (!isOperator) {
         setStep("approving-op");
@@ -166,7 +168,7 @@ export function SubscribeModal({
           functionName: "setOperator",
           args: [HUSH_CONTRACT_ADDRESS, 2 ** 48 - 1],
         });
-        await waitForTx(writeContractAsync, opTx);
+        await waitForTx(publicClient, opTx as `0x${string}`);
       }
 
       setStep("encrypting");
@@ -193,10 +195,27 @@ export function SubscribeModal({
         description: `Your encrypted payment to ${creatorName} is onchain.`,
       });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Transaction failed";
-      setError(msg);
+      const raw = e instanceof Error ? e.message : "Transaction failed";
+      // Map to a short, human-readable message; keep the raw for the details panel.
+      const lower = raw.toLowerCase();
+      let friendly: string;
+      if (lower.includes("user rejected") || lower.includes("user denied") || lower.includes("user cancelled")) {
+        friendly = "Transaction rejected in wallet.";
+      } else if (lower.includes("insufficient funds")) {
+        friendly = "Insufficient ETH for gas.";
+      } else if (lower.includes("reverted")) {
+        const m = raw.match(/reverted with reason:\s*['"]?([^'"\n]+)/i);
+        const c = raw.match(/reverted with custom error\s*['"]?([A-Za-z0-9_]+)/i);
+        friendly = c ? `Reverted: ${c[1]}` : m ? `Reverted: ${m[1].trim()}` : "Transaction reverted onchain.";
+      } else {
+        const firstLine = raw.split("\n")[0].trim();
+        friendly = firstLine.length > 200 ? firstLine.slice(0, 200) + "…" : firstLine;
+      }
+      if (friendly.length > 200) friendly = friendly.slice(0, 200) + "…";
+      setError(friendly);
+      setErrorDetail(raw);
       setStep("error");
-      toast.error("Subscription failed", { description: msg.split("\n")[0] });
+      toast.error("Subscription failed", { description: friendly });
     }
   }
 
@@ -364,10 +383,32 @@ export function SubscribeModal({
                 <DialogTitle className="text-center text-destructive-foreground">
                   Something went wrong
                 </DialogTitle>
-                <p className="mt-1.5 break-words text-sm text-muted-foreground">{error}</p>
+                <div
+                  className="mt-2 max-h-24 overflow-y-auto rounded-lg border border-border bg-muted/40 p-3 text-left"
+                  style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                >
+                  <p className="text-sm text-foreground/90">{error}</p>
+                </div>
+                {errorDetail && errorDetail !== error && (
+                  <details className="mt-2 text-left">
+                    <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground/80">
+                      Show details
+                    </summary>
+                    <pre
+                      className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/40 p-3 text-left text-[10px] text-muted-foreground"
+                      style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+                    >
+                      {errorDetail}
+                    </pre>
+                  </details>
+                )}
               </div>
               <Button
-                onClick={() => setStep("idle")}
+                onClick={() => {
+                  setError("");
+                  setErrorDetail("");
+                  setStep("idle");
+                }}
                 size="lg"
                 variant="secondary"
                 className="w-full"
@@ -383,8 +424,9 @@ export function SubscribeModal({
 }
 
 async function waitForTx(
-  _write: ReturnType<typeof useWriteContract>["writeContractAsync"],
-  _hash: string,
+  publicClient: ReturnType<typeof usePublicClient>,
+  hash: `0x${string}`,
 ) {
-  return;
+  if (!publicClient) return;
+  await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
 }
