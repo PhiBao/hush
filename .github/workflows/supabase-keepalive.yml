@@ -1,0 +1,62 @@
+name: supabase-keepalive
+
+# Supabase free-tier projects are paused after ~7 days of inactivity.
+# This workflow pings the database on a schedule to keep it active,
+# and also pings the deployed frontend (Vercel) so its serverless
+# functions stay warm.
+
+on:
+  schedule:
+    # Every 5 days. Free tier pauses after 7; 5 gives a safe margin.
+    - cron: "0 9 */5 * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Supabase database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE" ]; then
+            echo "::warning::SUPABASE_URL or SUPABASE_SERVICE_ROLE secret not set — skipping."
+            exit 0
+          fi
+          echo "Pinging $SUPABASE_URL ..."
+          HTTP_CODE=$(curl -sS -o /tmp/resp.json -w "%{http_code}" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE" \
+            "$SUPABASE_URL/rest/v1/posts?select=id&limit=1")
+          echo "HTTP $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Supabase ping failed (HTTP $HTTP_CODE):"
+            cat /tmp/resp.json || true
+            exit 1
+          fi
+          echo "Supabase OK."
+
+      - name: Ping deployed frontend (optional)
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "APP_URL secret not set — skipping frontend ping."
+            exit 0
+          fi
+          echo "Pinging $APP_URL ..."
+          HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            "$APP_URL/" || echo "000")
+          echo "HTTP $HTTP_CODE"
+          # Non-fatal: don't fail the job if the app is slow or cold-starting.
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 500 ]; then
+            echo "::warning::Frontend ping returned $HTTP_CODE (non-fatal)."
+          fi
+          echo "Frontend ping complete."

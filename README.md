@@ -185,3 +185,30 @@ hush/
 - Service-role Supabase key is server-only (never `NEXT_PUBLIC_`)
 - No admin keys, no backdoors, no upgradeability in the Hush contract
 - The app is non-custodial — Hush never holds creator funds
+
+---
+
+## Deployment
+
+### Vercel
+The frontend is a standard Next.js 15 app. Environment variables to set in the Vercel project:
+
+| Variable | Required | Notes |
+|---|---|---|
+| `NEXT_PUBLIC_HUSH_CONTRACT` | yes | Deployed Hush contract address |
+| `NEXT_PUBLIC_PAYMENT_TOKEN` | yes | Sepolia cUSDT (default: `0x4E7B06D78965594eB5EF5414c357ca21E1554491`) |
+| `NEXT_PUBLIC_PAYMENT_TOKEN_UNDERLYING` | yes | Public test USDT (default: `0xa7dA08FafDC9097Cc0E7D4f113A61e31d7e8e9b0`) |
+| `NEXT_PUBLIC_SUPABASE_URL` | yes | |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes | Anon / publishable key |
+| `SUPABASE_SERVICE_ROLE` | yes | **Server-only** — used by the API route for gated content |
+
+`next.config.js` already marks `@react-native-async-storage/async-storage` and `pino-pretty` as `false` in webpack `resolve.fallback` (optional native deps pulled by MetaMask SDK / pino) so Vercel builds cleanly.
+
+### Supabase keepalive
+`.github/workflows/supabase-keepalive.yml` pings the Supabase database every 5 days to prevent the free-tier project from pausing after 7 days of inactivity. Add these GitHub repository secrets:
+
+- `SUPABASE_URL` — your Supabase project URL
+- `SUPABASE_SERVICE_ROLE` — the service-role key
+- `APP_URL` (optional) — deployed Vercel URL, also pinged to keep serverless functions warm
+
+You can trigger the workflow manually via the GitHub Actions UI ("Run workflow").
