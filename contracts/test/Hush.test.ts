@@ -236,4 +236,48 @@ describe("Hush", function () {
     expect(await hush.totalCreators()).to.equal(1n);
     expect(await hush.activeSubscriberCount(creator.address)).to.equal(2n);
   });
+
+  // ============ FHE-encrypted content access (euint256) ============
+
+  it("should publish an FHE-encrypted content key (euint256)", async function () {
+    // Creator encrypts a 256-bit AES key and stores it onchain.
+    const keyInput = await fhevm.createEncryptedInput(hushAddress, creator.address).add256(1n).encrypt();
+    await hush.connect(creator).publishContentKey(keyInput.handles[0], keyInput.inputProof);
+    // Key stored — subscribers who were granted ACL can decrypt.
+    const keyHandle = await hush.getContentKey(creator.address);
+    // Verify it's non-zero.
+    expect(keyHandle).to.not.equal(ethers.ZeroHash);
+  });
+
+  it("should let the creator decrypt their own content key", async function () {
+    const keyHandle = await hush.getContentKey(creator.address);
+    const decrypted = await fhevm.userDecryptEuint(
+      FhevmType.euint256,
+      keyHandle,
+      hushAddress,
+      creator
+    );
+    expect(decrypted).to.equal(1n);
+  });
+
+  it("should let subscribed wallets decrypt the content key (granted in subscribe)", async function () {
+    // subscriber was already subscribed in earlier tests — they should have ACL on the key.
+    const keyHandle = await hush.getContentKey(creator.address);
+    const decrypted = await fhevm.userDecryptEuint(
+      FhevmType.euint256,
+      keyHandle,
+      hushAddress,
+      subscriber
+    );
+    expect(decrypted).to.equal(1n);
+  });
+
+  // ============ Onchain earnings verification ============
+
+  it("should verify aggregate == confidential balance (view)", async function () {
+    const [aggHandle, balHandle] = await hush.verifyEarnings(creator.address);
+    const agg = await fhevm.userDecryptEuint(FhevmType.euint64, aggHandle, hushAddress, creator);
+    const bal = await fhevm.userDecryptEuint(FhevmType.euint64, balHandle, tokenAddress, creator);
+    expect(agg).to.equal(bal);
+  });
 });

@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useAccount, useReadContract } from "wagmi";
@@ -12,7 +14,7 @@ import {
   TrashIcon,
   UsersIcon,
 } from "@phosphor-icons/react";
-import { HUSH_ABI, HUSH_CONTRACT_ADDRESS, formatTokenAmount } from "@/lib/contract";
+import { HUSH_ABI, HUSH_CONTRACT_ADDRESS, formatTokenAmount, parseTokenAmount } from "@/lib/contract";
 import { EarningsCard } from "@/components/EarningsCard";
 import { getPosts, createPostClient, deletePostClient, type Post } from "@/lib/supabase";
 import { SiteHeader } from "@/components/site/SiteHeader";
@@ -96,7 +98,7 @@ export default function DashboardPage() {
       setNewTier(0);
       setShowNewPost(false);
       await loadPosts();
-      toast.success("Post published");
+      toast.success("Post published with FHE-encrypted content");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error";
       setPostError(`Failed: ${msg}`);

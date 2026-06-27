@@ -286,6 +286,56 @@ export const HUSH_ABI = [
   },
   {
     type: "function",
+    name: "getPollQuestion",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "pollIndex", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "", type: "string", internalType: "string" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getPollOptions",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "pollIndex", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "", type: "string[]", internalType: "string[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getPollOptionCount",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "pollIndex", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getPollActive",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "pollIndex", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool", internalType: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getPollCreatedAt",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "pollIndex", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "polls",
     inputs: [
       { name: "", type: "address", internalType: "address" },
@@ -298,6 +348,51 @@ export const HUSH_ABI = [
       { name: "active", type: "bool", internalType: "bool" },
     ],
     stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "publishPost",
+    inputs: [
+      { name: "tierIndex", type: "uint256", internalType: "uint256" },
+      { name: "encryptedKey", type: "bytes32", internalType: "externalEuint128" },
+      { name: "inputProof", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "requestContentAccess",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "postIndex", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getContentKey",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "postIndex", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getContentPostCount",
+    inputs: [{ name: "creator", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "verifyEarnings",
+    inputs: [{ name: "creator", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "nonpayable",
   },
   {
     type: "event",
@@ -357,6 +452,58 @@ export const HUSH_ABI = [
       { name: "voter", type: "address", indexed: true, internalType: "address" },
       { name: "pollIndex", type: "uint256", indexed: false, internalType: "uint256" },
       { name: "optionIndex", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+  },
+  {
+    type: "event",
+    name: "PostPublished",
+    inputs: [
+      { name: "creator", type: "address", indexed: true, internalType: "address" },
+      { name: "postIndex", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "tierIndex", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+  },
+  {
+    type: "event",
+    name: "ContentAccessGranted",
+    inputs: [
+      { name: "creator", type: "address", indexed: true, internalType: "address" },
+      { name: "subscriber", type: "address", indexed: true, internalType: "address" },
+      { name: "postIndex", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+  },
+  {
+    type: "function",
+    name: "publishContentKey",
+    inputs: [
+      { name: "encryptedKey", type: "bytes32", internalType: "externalEuint256" },
+      { name: "inputProof", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getContentKey",
+    inputs: [{ name: "creator", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "verifyEarnings",
+    inputs: [{ name: "creator", type: "address", internalType: "address" }],
+    outputs: [
+      { name: "aggregate", type: "uint256", internalType: "uint256" },
+      { name: "tokenBalance", type: "uint256", internalType: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "event",
+    name: "ContentKeyPublished",
+    inputs: [
+      { name: "creator", type: "address", indexed: true, internalType: "address" },
     ],
   },
 ] as const;

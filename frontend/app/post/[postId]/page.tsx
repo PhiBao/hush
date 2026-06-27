@@ -6,7 +6,7 @@ import { useAccount, useReadContract } from "wagmi";
 import Link from "next/link";
 import { ArrowLeftIcon, KeyholeIcon } from "@phosphor-icons/react";
 import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "@/lib/contract";
-import { getPostMeta, type Post } from "@/lib/supabase";
+import { getPostMeta, supabase, type Post } from "@/lib/supabase";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { Container } from "@/components/site/Container";
@@ -57,22 +57,18 @@ export default function PostDetailPage() {
   const postTier = meta?.tier_index ?? 0;
   const authorized = !!isSubscribed && postTier <= subscriberTier;
 
-  // Fetch gated full content via server API.
+  // Fetch full post from Supabase (public anon key, RLS allows SELECT).
   useEffect(() => {
     const id = Number(postId);
-    if (!id || !isConnected) {
-      setLoading(false);
-      return;
-    }
+    if (!id) { setLoading(false); return; }
     setLoading(true);
-    fetch(`/api/post/${id}?subscriber=${address}`)
-      .then((r) => r.json())
-      .then((data: { post: GatedPost; authorized: boolean }) => {
-        setPost(data.post);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [postId, isConnected, address, authorized]);
+    (async () => {
+      const { data, error } = await supabase.from("posts").select("*").eq("id", id).single();
+      if (error) console.error("Failed to fetch post:", error.message);
+      setPost((data as GatedPost) || null);
+      setLoading(false);
+    })();
+  }, [postId]);
 
   const displayName = meta?.creator_name || (creatorAddr !== ZERO
     ? `${creatorAddr.slice(0, 6)}...${creatorAddr.slice(-4)}`

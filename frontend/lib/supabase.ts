@@ -153,7 +153,9 @@ export async function getPostMeta(postId: number): Promise<Post | null> {
 
 /** Client-side wrapper: writes directly to Supabase via the public anon key.
  *  The dashboard already verifies client-side that the connected wallet
- *  is a registered creator before showing the form. */
+ *  is a registered creator before showing the form.
+ *  If onchainIndex is provided, stores it; otherwise null.
+ *  Content should already be encrypted (AES-GCM base64). */
 export async function createPostClient(
   creatorAddress: string,
   creatorName: string,

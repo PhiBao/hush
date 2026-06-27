@@ -228,26 +228,44 @@ function PollCard({
   voting: boolean;
   onVote: (optionIndex: number) => void;
 }) {
-  const { data: poll } = useReadContract({
+  const creator = creatorAddress as `0x${string}`;
+  const pi = BigInt(pollIndex);
+
+  const { data: question } = useReadContract({
     abi: HUSH_ABI,
     address: HUSH_CONTRACT_ADDRESS,
-    functionName: "polls",
-    args: [creatorAddress as `0x${string}`, BigInt(pollIndex)],
+    functionName: "getPollQuestion",
+    args: [creator, pi],
   });
 
-  const [question, options, , active] = poll as [string, string[], bigint, boolean] | undefined ?? ["", [], 0n, false];
+  const { data: options } = useReadContract({
+    abi: HUSH_ABI,
+    address: HUSH_CONTRACT_ADDRESS,
+    functionName: "getPollOptions",
+    args: [creator, pi],
+  });
+
+  const { data: active } = useReadContract({
+    abi: HUSH_ABI,
+    address: HUSH_CONTRACT_ADDRESS,
+    functionName: "getPollActive",
+    args: [creator, pi],
+  });
+
+  const opts = (options as string[]) || [];
+  const a = active as boolean;
 
   if (!question) return null;
 
   return (
     <div className="rounded-xl border border-border bg-card/60 p-5 space-y-4">
       <div className="flex items-start justify-between gap-2">
-        <h4 className="font-semibold tracking-tight">{question}</h4>
-        {!active && <Badge variant="secondary">Closed</Badge>}
+        <h4 className="font-semibold tracking-tight">{question as string}</h4>
+        {!a && <Badge variant="secondary">Closed</Badge>}
       </div>
 
       <div className="space-y-2">
-        {options.map((opt, i) => (
+        {opts.map((opt, i) => (
           <PollOption
             key={i}
             label={opt}
@@ -255,14 +273,14 @@ function PollCard({
             creatorAddress={creatorAddress}
             pollIndex={pollIndex}
             isCreator={isCreator}
-            active={active}
+            active={a}
             voting={voting}
             onVote={onVote}
           />
         ))}
       </div>
 
-      {!isCreator && isSubscribed && active && (
+      {!isCreator && isSubscribed && a && (
         <p className="text-[11px] text-muted-foreground/70 flex items-center gap-1.5">
           <LockKeyIcon className="h-3 w-3" />
           Your vote is encrypted. Nobody — not even the creator — can see your choice.

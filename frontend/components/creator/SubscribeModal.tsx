@@ -97,6 +97,7 @@ export function SubscribeModal({
   const [error, setError] = useState("");
   const [errorDetail, setErrorDetail] = useState("");
   const [txHash, setTxHash] = useState("");
+  const [tipInput, setTipInput] = useState("0");
 
   const { data: isOperator } = useReadContract({
     abi: CONFIDENTIAL_TOKEN_ABI,
@@ -114,7 +115,8 @@ export function SubscribeModal({
     query: { enabled: !!address },
   });
 
-  const paymentAmount = BigInt(tierPrice) + tipAmount;
+  const paymentAmount = BigInt(tierPrice) + (tipInput ? BigInt(tipInput) : 0n);
+  const tipParsed = tipInput ? BigInt(tipInput) : 0n;
   const busy = step !== "idle" && step !== "done" && step !== "error";
   const stepIndex = ORDER.indexOf(step);
 
@@ -131,7 +133,7 @@ export function SubscribeModal({
     setError("");
 
     try {
-      const needed = paymentAmount + tipAmount;
+      const needed = paymentAmount;
       if (underlyingBalance === undefined || BigInt(underlyingBalance as bigint) < needed) {
         const mintTx = await writeContractAsync({
           abi: ERC20_ABI,
@@ -237,9 +239,9 @@ export function SubscribeModal({
                 <DialogTitle>Subscribe to {creatorName}</DialogTitle>
                 <DialogDescription>
                   {tierName} · {formatTokenAmount(tierPrice)} cUSDT
-                  {tipAmount > 0n && (
+                  {tipParsed > 0n && (
                     <span className="mt-1 block text-ember-300">
-                      + {formatTokenAmount(tipAmount)} cUSDT private tip
+                      + {formatTokenAmount(tipParsed)} cUSDT private tip
                     </span>
                   )}
                 </DialogDescription>
@@ -256,6 +258,22 @@ export function SubscribeModal({
                   <LockKeyIcon weight="fill" className="h-3 w-3" />
                   Encrypted via Zama FHE
                 </Badge>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Private tip (optional)</label>
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={tipInput}
+                    onChange={(e) => setTipInput(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="0"
+                    className="w-24 bg-transparent font-mono text-sm outline-none"
+                  />
+                  <span className="text-xs text-muted-foreground">cUSDT extra — stays private</span>
+                </div>
               </div>
 
               <p className="font-mono text-[11px] text-muted-foreground/80">

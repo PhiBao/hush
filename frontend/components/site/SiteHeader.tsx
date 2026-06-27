@@ -62,6 +62,7 @@ function NavLink({ href, children }: { href: string; children: React.ReactNode }
     <Link
       href={href}
       className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors ease-ember hover:text-foreground hover:bg-muted/60"
+      suppressHydrationWarning
     >
       {children}
     </Link>
