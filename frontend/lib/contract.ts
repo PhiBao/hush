@@ -17,6 +17,22 @@ export function formatTokenAmount(weiOrUnits: string | bigint): string {
   return `${whole}.${frac.toString().padStart(6, "0").replace(/0+$/, "")}`;
 }
 
+/** Parse a decimal cUSDT string into the smallest unit (e.g. "0.001" → 1000n). */
+export function parseTokenAmount(dec: string): bigint {
+  const s = dec.trim().replace(/^0+(?=\d)/, "");
+  if (s === "" || s === ".") return 0n;
+  const parts = s.split(".");
+  if (parts.length === 1) {
+    const n = BigInt(parts[0]);
+    return n * 1_000_000n;
+  }
+  const integer = parts[0] || "0";
+  let frac = parts[1];
+  if (frac.length > 6) frac = frac.slice(0, 6);
+  frac = frac.padEnd(6, "0");
+  return BigInt(integer + frac);
+}
+
 export const HUSH_ABI = [
   {
     type: "constructor",

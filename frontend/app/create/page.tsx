@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
 import { ArrowRightIcon, CheckIcon, SparkleIcon, CopyIcon } from "@phosphor-icons/react";
-import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "@/lib/contract";
+import { HUSH_ABI, HUSH_CONTRACT_ADDRESS, parseTokenAmount } from "@/lib/contract";
 import { TierBuilder, type TierData } from "@/components/creator/TierBuilder";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
@@ -127,7 +127,7 @@ export default function CreatePage() {
           abi: HUSH_ABI,
           address: HUSH_CONTRACT_ADDRESS,
           functionName: "addTier",
-          args: [tier.name, BigInt(tier.price), BigInt(tier.durationSecs), tier.description],
+          args: [tier.name, parseTokenAmount(tier.price), BigInt(tier.durationSecs), tier.description],
         });
       }
       queryClient.invalidateQueries({ queryKey: ["readContract"] });
