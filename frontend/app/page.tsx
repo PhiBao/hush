@@ -96,6 +96,19 @@ export default function Home() {
     query: { enabled: uniqueCreators.length > 0 },
   });
 
+  // Also read subscription tier per creator to know which tier unlocks which posts.
+  const { data: tierResults } = useReadContracts({
+    contracts: isConnected && address
+      ? uniqueCreators.map((creatorAddr) => ({
+          abi: HUSH_ABI,
+          address: HUSH_CONTRACT_ADDRESS,
+          functionName: "subscriptionTier",
+          args: [creatorAddr as `0x${string}`, address],
+        } as const))
+      : [],
+    query: { enabled: uniqueCreators.length > 0 },
+  });
+
   const subscribedCreators = useMemo(() => {
     const set = new Set<string>();
     if (subResults && uniqueCreators.length > 0) {
@@ -105,6 +118,20 @@ export default function Home() {
     }
     return set;
   }, [subResults, uniqueCreators]);
+
+  // Map creator address -> subscriber tier index (only for subscribed creators).
+  const creatorTiers = useMemo(() => {
+    const map = new Map<string, number>();
+    if (tierResults && uniqueCreators.length > 0) {
+      uniqueCreators.forEach((creatorAddr, i) => {
+        const t = tierResults[i]?.result;
+        if (t !== undefined && t !== null) {
+          map.set(creatorAddr, Number(t));
+        }
+      });
+    }
+    return map;
+  }, [tierResults, uniqueCreators]);
 
   const heroPrimary = !isConnected ? (
     <ConnectButton.Custom>
@@ -278,7 +305,7 @@ export default function Home() {
                     key={post.id}
                     post={post}
                     href={`/post/${post.id}`}
-                    unlocked={isSubbed}
+                    unlocked={isSubbed && post.tier_index <= (creatorTiers.get(creatorAddr) ?? -1)}
                     tierName={post.tier_index > 0 ? `Tier ${post.tier_index + 1}` : undefined}
                   />
                 );
