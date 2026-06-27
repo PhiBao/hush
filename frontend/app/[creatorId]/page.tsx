@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CreatorAvatar } from "@/components/creator/CreatorAvatar";
 import { TierCard, type TierData } from "@/components/creator/TierCard";
 import { SubscribeModal } from "@/components/creator/SubscribeModal";
+import { PollSection } from "@/components/creator/PollSection";
 import { cn } from "@/lib/utils";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as `0x${string}`;
@@ -321,6 +322,17 @@ export default function CreatorPage() {
               <p className="text-sm text-muted-foreground">Connect your wallet to subscribe</p>
               <ConnectButton />
             </div>
+          )}
+
+          {/* Encrypted supporter poll (FHE.select + FHE.add voting) */}
+          {(address || isConnected) && (
+            <section>
+              <PollSection
+                creatorAddress={creatorAddr}
+                isCreator={!!address && address.toLowerCase() === creatorAddr.toLowerCase()}
+                isSubscribed={subscribed}
+              />
+            </section>
           )}
         </Container>
       </main>

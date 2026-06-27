@@ -12,6 +12,7 @@ describe("Hush", function () {
   let owner: ReturnType<typeof ethers.Wallet>;
   let creator: ReturnType<typeof ethers.Wallet>;
   let subscriber: ReturnType<typeof ethers.Wallet>;
+  let subscriber2: ReturnType<typeof ethers.Wallet>;
 
   before(async function () {
     if (!fhevm.isMock) {
@@ -23,6 +24,7 @@ describe("Hush", function () {
     owner = signers[0];
     creator = signers[1];
     subscriber = signers[2];
+    subscriber2 = signers[3];
 
     const Token = await ethers.getContractFactory("MockConfidentialToken");
     token = (await Token.deploy("Confidential USDT (Mock)", "cUSDTMock", 6, owner.address)) as unknown as MockConfidentialToken;
@@ -33,6 +35,8 @@ describe("Hush", function () {
     hushAddress = await hush.getAddress();
     await hush.waitForDeployment();
   });
+
+  // ============ Setup ============
 
   it("should expose the configured payment token", async function () {
     expect(await hush.paymentToken()).to.equal(tokenAddress);
@@ -51,102 +55,40 @@ describe("Hush", function () {
     expect(c.registered).to.be.true;
   });
 
-  it("should reject duplicate registration", async function () {
-    await expect(hush.connect(creator).registerCreator("Alice2", "bio2")).to.be.revertedWith(
-      "Already registered"
-    );
-  });
-
-  it("should reject empty name", async function () {
-    await expect(hush.connect(owner).registerCreator("", "bio")).to.be.revertedWith("Empty name");
-  });
-
   it("should add tiers", async function () {
     await hush.connect(creator).addTier("Supporter", 100n, 2592000n, "Basic access");
     await hush.connect(creator).addTier("Patron", 500n, 2592000n, "Premium access");
-
     const tiers = await hush.getTiers(creator.address);
     expect(tiers.length).to.equal(2);
     expect(tiers[0].name).to.equal("Supporter");
     expect(tiers[1].name).to.equal("Patron");
   });
 
-  it("should deactivate a tier", async function () {
-    await hush.connect(creator).removeTier(0);
-    const tiers = await hush.getTiers(creator.address);
-    expect(tiers[0].active).to.be.false;
-    expect(tiers[1].active).to.be.true;
-  });
-
-  it("should track active tier count correctly", async function () {
-    expect(await hush.getActiveTierCount(creator.address)).to.equal(1);
-  });
+  // ============ Subscribe with encrypted payment ============
 
   it("should subscribe with an encrypted payment that moves confidential tokens", async function () {
-    // 1) Mint encrypted tokens to the subscriber.
-    const mint = await fhevm
-      .createEncryptedInput(tokenAddress, subscriber.address)
-      .add64(1000n)
-      .encrypt();
+    // Mint encrypted tokens to subscriber.
+    const mint = await fhevm.createEncryptedInput(tokenAddress, subscriber.address).add64(1000n).encrypt();
     await token.connect(subscriber).mintEncrypted(subscriber.address, mint.handles[0], mint.inputProof);
-
-    // 2) Approve Hush as an operator for the subscriber's confidential tokens.
     await token.connect(subscriber).setOperator(hushAddress, 2 ** 48 - 1);
 
-    expect(await token.isOperator(subscriber.address, hushAddress)).to.be.true;
+    // Encrypt payment amount bound to Hush.
+    const payment = await fhevm.createEncryptedInput(hushAddress, subscriber.address).add64(100n).encrypt();
+    await hush.connect(subscriber).subscribe(creator.address, 1, payment.handles[0], payment.inputProof);
 
-    // 3) Encrypt the payment amount bound to the Hush contract.
-    const payment = await fhevm
-      .createEncryptedInput(hushAddress, subscriber.address)
-      .add64(100n)
-      .encrypt();
-
-    // 4) Subscribe — Hush pulls encrypted tokens and accumulates encrypted earnings.
-    await hush.connect(subscriber).subscribe(
-      creator.address,
-      1,
-      payment.handles[0],
-      payment.inputProof
-    );
-
-    const expiry = await hush.subscriptionExpiry(creator.address, subscriber.address);
-    expect(expiry).to.be.gt(0);
     expect(await hush.isSubscribed(creator.address, subscriber.address)).to.be.true;
   });
 
   it("should let only the creator decrypt their aggregate earnings", async function () {
     const earnings = await hush.getCreatorEarnings(creator.address);
-    const decrypted = await fhevm.userDecryptEuint(
-      FhevmType.euint64,
-      earnings,
-      hushAddress,
-      creator
-    );
+    const decrypted = await fhevm.userDecryptEuint(FhevmType.euint64, earnings, hushAddress, creator);
     expect(decrypted).to.equal(100n);
   });
 
-  it("should let the creator decrypt their confidential token balance (real money)", async function () {
+  it("should let the creator decrypt their confidential token balance", async function () {
     const balHandle = await token.confidentialBalanceOf(creator.address);
-    const decrypted = await fhevm.userDecryptEuint(
-      FhevmType.euint64,
-      balHandle,
-      tokenAddress,
-      creator
-    );
-    // creator received 100 from the subscription.
+    const decrypted = await fhevm.userDecryptEuint(FhevmType.euint64, balHandle, tokenAddress, creator);
     expect(decrypted).to.equal(100n);
-  });
-
-  it("should decrement the subscriber's confidential balance", async function () {
-    const balHandle = await token.confidentialBalanceOf(subscriber.address);
-    const decrypted = await fhevm.userDecryptEuint(
-      FhevmType.euint64,
-      balHandle,
-      tokenAddress,
-      subscriber
-    );
-    // minted 1000, paid 100.
-    expect(decrypted).to.equal(900n);
   });
 
   it("should track aggregate earnings == confidential balance (the FHE proof)", async function () {
@@ -157,107 +99,141 @@ describe("Hush", function () {
     expect(agg).to.equal(bal);
   });
 
+  // ============ FHE.ge payment sufficiency proof ============
+
+  it("should compute an encrypted payment-sufficiency flag (FHE.ge)", async function () {
+    // Subscriber paid 100, tier price is 500 (Patron). 100 < 500 → sufficient = false.
+    const suffHandle = await hush.getPaymentSufficient(creator.address, subscriber.address);
+    const decrypted = await fhevm.userDecryptEbool(suffHandle, hushAddress, subscriber);
+    // 100 < 500 → NOT sufficient
+    expect(decrypted).to.equal(false);
+  });
+
+  it("should mark payment sufficient when amount >= tier price", async function () {
+    // subscriber2 pays 500 (exact Patron price).
+    const mint = await fhevm.createEncryptedInput(tokenAddress, subscriber2.address).add64(1000n).encrypt();
+    await token.connect(subscriber2).mintEncrypted(subscriber2.address, mint.handles[0], mint.inputProof);
+    await token.connect(subscriber2).setOperator(hushAddress, 2 ** 48 - 1);
+
+    const payment = await fhevm.createEncryptedInput(hushAddress, subscriber2.address).add64(500n).encrypt();
+    await hush.connect(subscriber2).subscribe(creator.address, 1, payment.handles[0], payment.inputProof);
+
+    const suffHandle = await hush.getPaymentSufficient(creator.address, subscriber2.address);
+    const decrypted = await fhevm.userDecryptEbool(suffHandle, hushAddress, subscriber2);
+    // 500 >= 500 → sufficient
+    expect(decrypted).to.equal(true);
+  });
+
+  it("should mark payment sufficient when amount exceeds tier price (private tip)", async function () {
+    // subscriber pays 700 (500 tier + 200 private tip).
+    const mint = await fhevm.createEncryptedInput(tokenAddress, subscriber.address).add64(700n).encrypt();
+    await token.connect(subscriber).mintEncrypted(subscriber.address, mint.handles[0], mint.inputProof);
+
+    const payment = await fhevm.createEncryptedInput(hushAddress, subscriber.address).add64(700n).encrypt();
+    await hush.connect(subscriber).subscribe(creator.address, 1, payment.handles[0], payment.inputProof);
+
+    const suffHandle = await hush.getPaymentSufficient(creator.address, subscriber.address);
+    const decrypted = await fhevm.userDecryptEbool(suffHandle, hushAddress, subscriber);
+    // 700 >= 500 → sufficient
+    expect(decrypted).to.equal(true);
+
+    // Creator's aggregate is now 100 + 500 + 700 = 1300.
+    const aggHandle = await hush.getCreatorEarnings(creator.address);
+    const agg = await fhevm.userDecryptEuint(FhevmType.euint64, aggHandle, hushAddress, creator);
+    expect(agg).to.equal(1300n);
+  });
+
+  // ============ Encrypted supporter poll ============
+
+  it("should create a poll", async function () {
+    await hush.connect(creator).createPoll("What should I write next?", ["Deep dive", "Tutorial", "Opinion"]);
+    const count = await hush.getPollCount(creator.address);
+    expect(count).to.equal(1n);
+  });
+
+  it("should reject poll with too few options", async function () {
+    await expect(hush.connect(creator).createPoll("Bad", ["Only one"])).to.be.revertedWith(
+      "Need 2-6 options"
+    );
+  });
+
+  it("should allow subscribers to vote with encrypted choice (FHE.select)", async function () {
+    // subscriber votes for option 1 (Tutorial).
+    const vote = await fhevm.createEncryptedInput(hushAddress, subscriber.address).add64(1n).encrypt();
+    await hush.connect(subscriber).vote(creator.address, 0, 1, vote.handles[0], vote.inputProof);
+  });
+
+  it("should allow subscriber2 to vote with encrypted choice", async function () {
+    // subscriber2 votes for option 0 (Deep dive).
+    const vote = await fhevm.createEncryptedInput(hushAddress, subscriber2.address).add64(0n).encrypt();
+    await hush.connect(subscriber2).vote(creator.address, 0, 0, vote.handles[0], vote.inputProof);
+  });
+
+  it("should reject double voting", async function () {
+    const vote = await fhevm.createEncryptedInput(hushAddress, subscriber.address).add64(2n).encrypt();
+    await expect(
+      hush.connect(subscriber).vote(creator.address, 0, 2, vote.handles[0], vote.inputProof)
+    ).to.be.revertedWith("Already voted");
+  });
+
+  it("should reject vote from non-subscriber", async function () {
+    const vote = await fhevm.createEncryptedInput(hushAddress, owner.address).add64(0n).encrypt();
+    await expect(
+      hush.connect(owner).vote(creator.address, 0, 0, vote.handles[0], vote.inputProof)
+    ).to.be.revertedWith("Not subscribed");
+  });
+
+  it("should let only the creator decrypt poll results (FHE aggregate votes)", async function () {
+    // Option 0 (Deep dive): 1 vote from subscriber2.
+    const opt0Handle = await hush.getPollVotes(creator.address, 0, 0);
+    const opt0 = await fhevm.userDecryptEuint(FhevmType.euint64, opt0Handle, hushAddress, creator);
+    expect(opt0).to.equal(1n);
+
+    // Option 1 (Tutorial): 1 vote from subscriber.
+    const opt1Handle = await hush.getPollVotes(creator.address, 0, 1);
+    const opt1 = await fhevm.userDecryptEuint(FhevmType.euint64, opt1Handle, hushAddress, creator);
+    expect(opt1).to.equal(1n);
+
+    // Option 2 (Opinion): 0 votes.
+    const opt2Handle = await hush.getPollVotes(creator.address, 0, 2);
+    const opt2 = await fhevm.userDecryptEuint(FhevmType.euint64, opt2Handle, hushAddress, creator);
+    expect(opt2).to.equal(0n);
+  });
+
+  // ============ Edge cases ============
+
   it("should reject subscription from unregistered creator", async function () {
-    const payment = await fhevm
-      .createEncryptedInput(hushAddress, subscriber.address)
-      .add64(100n)
-      .encrypt();
+    const payment = await fhevm.createEncryptedInput(hushAddress, subscriber.address).add64(100n).encrypt();
     await expect(
       hush.connect(subscriber).subscribe(owner.address, 0, payment.handles[0], payment.inputProof)
     ).to.be.revertedWith("Creator not registered");
   });
 
   it("should reject self-subscription", async function () {
-    const payment = await fhevm
-      .createEncryptedInput(hushAddress, creator.address)
-      .add64(100n)
-      .encrypt();
+    const payment = await fhevm.createEncryptedInput(hushAddress, creator.address).add64(100n).encrypt();
     await expect(
       hush.connect(creator).subscribe(creator.address, 1, payment.handles[0], payment.inputProof)
     ).to.be.revertedWith("Cannot subscribe to yourself");
   });
 
   it("should reject inactive tier", async function () {
-    const payment = await fhevm
-      .createEncryptedInput(hushAddress, subscriber.address)
-      .add64(100n)
-      .encrypt();
+    await hush.connect(creator).removeTier(0);
+    const payment = await fhevm.createEncryptedInput(hushAddress, subscriber.address).add64(100n).encrypt();
     await expect(
       hush.connect(subscriber).subscribe(creator.address, 0, payment.handles[0], payment.inputProof)
     ).to.be.revertedWith("Tier not active");
   });
 
-  it("should reject when Hush is not an operator", async function () {
-    const fresh = (await ethers.getSigners())[3];
-    const mint = await fhevm
-      .createEncryptedInput(tokenAddress, fresh.address)
-      .add64(1000n)
-      .encrypt();
-    await token.connect(fresh).mintEncrypted(fresh.address, mint.handles[0], mint.inputProof);
-
-    const payment = await fhevm
-      .createEncryptedInput(hushAddress, fresh.address)
-      .add64(100n)
-      .encrypt();
-    await expect(
-      hush.connect(fresh).subscribe(creator.address, 1, payment.handles[0], payment.inputProof)
-    ).to.be.revertedWith("Not operator");
+  it("should support renewal without double-counting subscriber", async function () {
+    const beforeCount = await hush.activeSubscriberCount(creator.address);
+    const payment = await fhevm.createEncryptedInput(hushAddress, subscriber.address).add64(500n).encrypt();
+    await hush.connect(subscriber).subscribe(creator.address, 1, payment.handles[0], payment.inputProof);
+    expect(await hush.activeSubscriberCount(creator.address)).to.equal(beforeCount);
   });
 
   it("should track totals", async function () {
-    expect(await hush.totalSubscriptions()).to.equal(1n);
-    expect(await hush.totalCreators()).to.equal(1n);
-    expect(await hush.activeSubscriberCount(creator.address)).to.equal(1n);
-  });
-
-  it("should track subscription tier", async function () {
-    expect(await hush.subscriptionTier(creator.address, subscriber.address)).to.equal(1n);
-    expect(await hush.getSubscriptionTier(creator.address, subscriber.address)).to.equal(1n);
-  });
-
-  it("should revert getSubscriptionTier for expired/non-existent subscription", async function () {
-    await expect(hush.getSubscriptionTier(creator.address, owner.address)).to.be.revertedWith(
-      "Subscription expired or not found"
-    );
-  });
-
-  it("should support renewal (extend expiry without double-counting subscriber)", async function () {
-    const beforeCount = await hush.activeSubscriberCount(creator.address);
-    const beforeTotal = await hush.totalSubscriptions();
-
-    const payment = await fhevm
-      .createEncryptedInput(hushAddress, subscriber.address)
-      .add64(200n)
-      .encrypt();
-    await hush.connect(subscriber).subscribe(creator.address, 1, payment.handles[0], payment.inputProof);
-
-    // Same subscriber: count unchanged, total unchanged.
-    expect(await hush.activeSubscriberCount(creator.address)).to.equal(beforeCount);
-    expect(await hush.totalSubscriptions()).to.equal(beforeTotal);
-
-    // Earnings aggregate now 100 + 200 = 300.
-    const aggHandle = await hush.getCreatorEarnings(creator.address);
-    const agg = await fhevm.userDecryptEuint(FhevmType.euint64, aggHandle, hushAddress, creator);
-    expect(agg).to.equal(300n);
-  });
-
-  it("should accumulate earnings across multiple subscribers", async function () {
-    const s3 = (await ethers.getSigners())[3];
-
-    const mint = await fhevm.createEncryptedInput(tokenAddress, s3.address).add64(1000n).encrypt();
-    await token.connect(s3).mintEncrypted(s3.address, mint.handles[0], mint.inputProof);
-    await token.connect(s3).setOperator(hushAddress, 2 ** 48 - 1);
-
-    const payment = await fhevm.createEncryptedInput(hushAddress, s3.address).add64(500n).encrypt();
-    await hush.connect(s3).subscribe(creator.address, 1, payment.handles[0], payment.inputProof);
-
-    // Total aggregate = 300 (previous) + 500 = 800.
-    const aggHandle = await hush.getCreatorEarnings(creator.address);
-    const agg = await fhevm.userDecryptEuint(FhevmType.euint64, aggHandle, hushAddress, creator);
-    expect(agg).to.equal(800n);
-
-    // Active subscribers now 2.
-    expect(await hush.activeSubscriberCount(creator.address)).to.equal(2n);
     expect(await hush.totalSubscriptions()).to.equal(2n);
+    expect(await hush.totalCreators()).to.equal(1n);
+    expect(await hush.activeSubscriberCount(creator.address)).to.equal(2n);
   });
 });

@@ -227,6 +227,79 @@ export const HUSH_ABI = [
     stateMutability: "nonpayable",
   },
   {
+    type: "function",
+    name: "getPaymentSufficient",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "subscriber", type: "address", internalType: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "createPoll",
+    inputs: [
+      { name: "question", type: "string", internalType: "string" },
+      { name: "options", type: "string[]", internalType: "string[]" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "vote",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "pollIndex", type: "uint256", internalType: "uint256" },
+      { name: "optionIndex", type: "uint256", internalType: "uint256" },
+      { name: "encryptedChoice", type: "bytes32", internalType: "externalEuint64" },
+      { name: "inputProof", type: "bytes", internalType: "bytes" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getPollVotes",
+    inputs: [
+      { name: "creator", type: "address", internalType: "address" },
+      { name: "pollIndex", type: "uint256", internalType: "uint256" },
+      { name: "optionIndex", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "closePoll",
+    inputs: [{ name: "pollIndex", type: "uint256", internalType: "uint256" }],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "getPollCount",
+    inputs: [{ name: "creator", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "uint256", internalType: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "polls",
+    inputs: [
+      { name: "", type: "address", internalType: "address" },
+      { name: "", type: "uint256", internalType: "uint256" },
+    ],
+    outputs: [
+      { name: "question", type: "string", internalType: "string" },
+      { name: "options", type: "string[]", internalType: "string[]" },
+      { name: "createdAt", type: "uint256", internalType: "uint256" },
+      { name: "active", type: "bool", internalType: "bool" },
+    ],
+    stateMutability: "view",
+  },
+  {
     type: "event",
     name: "CreatorRegistered",
     inputs: [
@@ -257,6 +330,33 @@ export const HUSH_ABI = [
       { name: "tierIndex", type: "uint256", indexed: false, internalType: "uint256" },
       { name: "name", type: "string", indexed: false, internalType: "string" },
       { name: "price", type: "uint256", indexed: false, internalType: "uint256" },
+    ],
+  },
+  {
+    type: "event",
+    name: "PaymentSufficiencyVerified",
+    inputs: [
+      { name: "creator", type: "address", indexed: true, internalType: "address" },
+      { name: "subscriber", type: "address", indexed: true, internalType: "address" },
+    ],
+  },
+  {
+    type: "event",
+    name: "PollCreated",
+    inputs: [
+      { name: "creator", type: "address", indexed: true, internalType: "address" },
+      { name: "pollIndex", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "question", type: "string", indexed: false, internalType: "string" },
+    ],
+  },
+  {
+    type: "event",
+    name: "Voted",
+    inputs: [
+      { name: "creator", type: "address", indexed: true, internalType: "address" },
+      { name: "voter", type: "address", indexed: true, internalType: "address" },
+      { name: "pollIndex", type: "uint256", indexed: false, internalType: "uint256" },
+      { name: "optionIndex", type: "uint256", indexed: false, internalType: "uint256" },
     ],
   },
 ] as const;
