@@ -255,6 +255,8 @@ function PollCard({
   const opts = (options as string[]) || [];
   const a = active as boolean;
 
+  const [forceReveal, setForceReveal] = useState(false);
+
   if (!question) return null;
 
   return (
@@ -275,6 +277,7 @@ function PollCard({
             isCreator={isCreator}
             active={a}
             voting={voting}
+            forceReveal={forceReveal}
             onVote={onVote}
           />
         ))}
@@ -289,8 +292,16 @@ function PollCard({
       {isCreator && (
         <p className="text-[11px] text-ember-300/80 flex items-center gap-1.5">
           <SealCheckIcon className="h-3 w-3" />
-          Decrypt results below — only you can see the aggregate votes.
+          {forceReveal
+            ? "Aggregate votes shown below."
+            : "Only you can decrypt the aggregate results."}
         </p>
+      )}
+      {isCreator && !forceReveal && opts.length > 0 && (
+        <Button size="sm" onClick={() => setForceReveal(true)} className="w-full">
+          <SealCheckIcon className="h-4 w-4" />
+          Decrypt results
+        </Button>
       )}
       {!isSubscribed && !isCreator && (
         <p className="text-[11px] text-muted-foreground">Subscribe to vote in this poll.</p>
@@ -307,6 +318,7 @@ function PollOption({
   isCreator,
   active,
   voting,
+  forceReveal,
   onVote,
 }: {
   label: string;
@@ -316,6 +328,7 @@ function PollOption({
   isCreator: boolean;
   active: boolean;
   voting: boolean;
+  forceReveal: boolean;
   onVote: (optionIndex: number) => void;
 }) {
   const { data: voteHandle } = useReadContract({
@@ -330,22 +343,16 @@ function PollOption({
     ? (`0x${(voteHandle as bigint).toString(16).padStart(64, "0")}` as `0x${string}`)
     : undefined;
 
-  // Creator can decrypt the vote count.
-  const { data: decryptedVotes, refetch } = useUserDecrypt(
+  // Creator can decrypt the vote count when forceReveal is true.
+  const { data: decryptedVotes } = useUserDecrypt(
     { handles: handleHex ? [{ handle: handleHex, contractAddress: HUSH_CONTRACT_ADDRESS }] : [] },
-    { enabled: false }, // triggered manually
+    { enabled: !!forceReveal && !!handleHex },
   );
 
-  const [revealed, setRevealed] = useState(false);
-
-  async function revealVotes() {
-    setRevealed(true);
-    refetch();
-  }
-
-  const voteCount = revealed && handleHex && decryptedVotes
+  const voteCount = forceReveal && handleHex && decryptedVotes
     ? (decryptedVotes as Record<string, bigint> | undefined)?.[handleHex]
     : undefined;
+  const unlocking = forceReveal && !!handleHex && voteCount === undefined;
 
   return (
     <div
@@ -359,10 +366,13 @@ function PollOption({
     >
       <span className="text-sm font-medium">{label}</span>
       <div className="flex items-center gap-2">
-        {isCreator && hasVotes && !revealed && (
+        {isCreator && hasVotes && !forceReveal && (
           <span className="font-mono text-xs text-muted-foreground">••••</span>
         )}
-        {isCreator && hasVotes && revealed && voteCount !== undefined && (
+        {isCreator && forceReveal && unlocking && (
+          <SpinnerIcon className="h-3.5 w-3.5 animate-spin text-ember-400" />
+        )}
+        {isCreator && forceReveal && voteCount !== undefined && (
           <span className="font-mono text-sm font-semibold text-ember-300">{voteCount.toString()}</span>
         )}
         {isCreator && !hasVotes && (
