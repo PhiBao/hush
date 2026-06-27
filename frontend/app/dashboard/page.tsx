@@ -14,7 +14,7 @@ import {
 } from "@phosphor-icons/react";
 import { HUSH_ABI, HUSH_CONTRACT_ADDRESS, formatTokenAmount } from "@/lib/contract";
 import { EarningsCard } from "@/components/EarningsCard";
-import { getPosts, createPost, deletePost, type Post } from "@/lib/supabase";
+import { getPosts, createPostClient, deletePostClient, type Post } from "@/lib/supabase";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { Container } from "@/components/site/Container";
@@ -90,7 +90,7 @@ export default function DashboardPage() {
     setPostError("");
     setSaving(true);
     try {
-      await createPost(address, creatorName, newTitle.trim(), newContent.trim(), newTier);
+      await createPostClient(address, creatorName, newTitle.trim(), newContent.trim(), newTier);
       setNewTitle("");
       setNewContent("");
       setNewTier(0);
@@ -105,7 +105,7 @@ export default function DashboardPage() {
   }
 
   async function handleDeletePost(id: number) {
-    await deletePost(id);
+    await deletePostClient(id);
     await loadPosts();
     toast.success("Post deleted");
   }

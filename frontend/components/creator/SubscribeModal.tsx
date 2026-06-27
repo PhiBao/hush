@@ -188,6 +188,7 @@ export function SubscribeModal({
         functionName: "subscribe",
         args: [creatorAddress as `0x${string}`, BigInt(tierIndex), handleHex, proofHex],
       });
+      await waitForTx(publicClient, hash as `0x${string}`);
       setTxHash(hash);
       setStep("done");
       queryClient.invalidateQueries();

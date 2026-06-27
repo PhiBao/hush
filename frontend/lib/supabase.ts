@@ -150,3 +150,31 @@ export async function getPostMeta(postId: number): Promise<Post | null> {
   }
   return data as Post;
 }
+
+/** Client-side wrapper: calls the server API route to create a post (server verifies creator onchain). */
+export async function createPostClient(
+  creatorAddress: string,
+  creatorName: string,
+  title: string,
+  content: string,
+  tierIndex: number,
+): Promise<Post | null> {
+  const res = await fetch("/api/posts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ creatorAddress, creatorName, title, content, tierIndex }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Request failed" }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.post as Post;
+}
+
+/** Client-side wrapper: calls the server API route to delete a post. */
+export async function deletePostClient(id: number): Promise<boolean> {
+  const res = await fetch(`/api/posts/${id}`, { method: "DELETE" });
+  if (!res.ok) return false;
+  return true;
+}
