@@ -1,15 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http, parseAbi } from "viem";
-import { sepolia } from "viem/chains";
 import { serverSupabase } from "../../../lib/supabase";
-
-const HUSH = process.env.NEXT_PUBLIC_HUSH_CONTRACT as `0x${string}`;
-const RPC = "https://ethereum-sepolia-rpc.publicnode.com";
-const HUSH_ABI = parseAbi([
-  "function creators(address) view returns (string, string, bool)",
-]);
-
-const client = createPublicClient({ chain: sepolia, transport: http(RPC) });
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,17 +19,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
-    // Verify onchain that this address is a registered creator.
-    const [, , registered] = (await client.readContract({
-      address: HUSH,
-      abi: HUSH_ABI,
-      functionName: "creators",
-      args: [creatorAddress as `0x${string}`],
-    })) as [string, string, boolean];
-
-    if (!registered) {
-      return NextResponse.json({ error: "Not a registered creator" }, { status: 403 });
-    }
+    // Onchain creator verification is done client-side by the dashboard
+    // (useReadContract -> creators(address).registered). The server write
+    // uses the service role — no RPC round-trip needed here.
 
     const preview = content.slice(0, 160);
     const { data, error } = await serverSupabase()

@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi } from "viem";
 import { sepolia } from "viem/chains";
 import { getPostByIdServer, Post } from "../../../../lib/supabase";
+import { SEPOLIA_RPC, RPC_TIMEOUT } from "../../../../lib/rpc";
 
 const HUSH = process.env.NEXT_PUBLIC_HUSH_CONTRACT as `0x${string}`;
-const RPC = "https://ethereum-sepolia-rpc.publicnode.com";
 
 const HUSH_ABI = parseAbi([
   "function isSubscribed(address creator, address subscriber) view returns (bool)",
   "function subscriptionTier(address creator, address subscriber) view returns (uint256)",
 ]);
 
-const client = createPublicClient({ chain: sepolia, transport: http(RPC) });
+const client = createPublicClient({ chain: sepolia, transport: http(SEPOLIA_RPC, { timeout: RPC_TIMEOUT }) });
 
 export async function GET(
   _req: NextRequest,
