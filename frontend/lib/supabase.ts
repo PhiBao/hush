@@ -122,3 +122,31 @@ export async function deletePost(id: number): Promise<boolean> {
   }
   return true;
 }
+
+/** Full post by ID (server-only — service role, for API routes). */
+export async function getPostByIdServer(postId: number): Promise<Post | null> {
+  const { data, error } = await serverSupabase()
+    .from("posts")
+    .select("*")
+    .eq("id", postId)
+    .single();
+  if (error) {
+    console.error("Failed to fetch post:", error);
+    return null;
+  }
+  return data as Post;
+}
+
+/** Public metadata for a single post (anon key, preview + title only). */
+export async function getPostMeta(postId: number): Promise<Post | null> {
+  const { data, error } = await supabase
+    .from("posts")
+    .select("id, creator_address, creator_name, title, preview, tier_index, created_at")
+    .eq("id", postId)
+    .single();
+  if (error) {
+    console.error("Failed to fetch post meta:", error);
+    return null;
+  }
+  return data as Post;
+}

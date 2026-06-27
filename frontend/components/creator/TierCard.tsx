@@ -19,9 +19,10 @@ interface TierCardProps {
   onSubscribe: () => void;
   disabled?: boolean;
   featured?: boolean;
+  isCurrentTier?: boolean;
 }
 
-export function TierCard({ tier, index, onSubscribe, disabled, featured }: TierCardProps) {
+export function TierCard({ tier, index, onSubscribe, disabled, featured, isCurrentTier }: TierCardProps) {
   const durationDays = Math.round(Number(tier.durationSecs) / 86400) || 30;
   const priceLabel = formatTokenAmount(tier.price);
 
@@ -30,12 +31,19 @@ export function TierCard({ tier, index, onSubscribe, disabled, featured }: TierC
       className={cn(
         "relative flex flex-col rounded-2xl border bg-card/70 p-6 shadow-card backdrop-blur-sm transition-all duration-300 ease-ember",
         featured ? "border-primary/40 shadow-ember" : "border-border hover:border-foreground/20",
+        isCurrentTier && "border-success/50 bg-success/[0.04]",
       )}
     >
       {featured && (
         <Badge className="absolute -top-3 left-6">
           <SparkleIcon weight="fill" className="h-3 w-3" />
           Most popular
+        </Badge>
+      )}
+      {isCurrentTier && (
+        <Badge variant="success" className="absolute -top-3 left-6">
+          <CheckIcon weight="fill" className="h-3 w-3" />
+          Current tier
         </Badge>
       )}
 
@@ -61,13 +69,17 @@ export function TierCard({ tier, index, onSubscribe, disabled, featured }: TierC
 
       <Button
         onClick={onSubscribe}
-        disabled={disabled}
+        disabled={disabled || isCurrentTier}
         className="mt-6 w-full"
         size="lg"
-        variant={featured ? "default" : "secondary"}
+        variant={isCurrentTier ? "outline" : featured ? "default" : "secondary"}
       >
-        {disabled ? "Connect wallet" : "Subscribe"}
-        {!disabled && <CheckIcon className="h-4 w-4" />}
+        {isCurrentTier
+          ? "Subscribed"
+          : disabled
+            ? "Connect wallet"
+            : "Subscribe"}
+        {!disabled && !isCurrentTier && <CheckIcon className="h-4 w-4" />}
       </Button>
     </div>
   );

@@ -33,6 +33,7 @@ export default function CreatorPage() {
     index: number;
   } | null>(null);
   const [localSubscribed, setLocalSubscribed] = useState(false);
+  const [localSubTierIndex, setLocalSubTierIndex] = useState(-1);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
 
@@ -74,7 +75,8 @@ export default function CreatorPage() {
   const creatorBio = (creator as [string, string, boolean] | undefined)?.[1] || "";
   const isRegistered = (creator as [string, string, boolean] | undefined)?.[2] || false;
   const subscribed = isSubscribed || localSubscribed;
-  const subscriberTierIndex = subTier !== undefined ? Number(subTier) : -1;
+  const subscriberTierIndex = isSubscribed ? (subTier !== undefined ? Number(subTier) : -1)
+    : localSubTierIndex;
 
   const tierList: TierData[] = Array.isArray(tiers)
     ? (tiers as unknown as TierData[])
@@ -198,9 +200,12 @@ export default function CreatorPage() {
                       return (
                         <article key={post.id} className="py-6">
                           <div className="flex items-start justify-between gap-3">
-                            <h3 className="text-lg font-semibold tracking-tight text-foreground">
+                            <Link
+                              href={`/post/${post.id}`}
+                              className="text-lg font-semibold tracking-tight text-foreground hover:text-ember-300 transition-colors"
+                            >
                               {post.title}
-                            </h3>
+                            </Link>
                             {post.tier_index > 0 && (
                               <span className="shrink-0 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                                 {tierName}
@@ -299,6 +304,7 @@ export default function CreatorPage() {
                     tier={tier}
                     index={i}
                     featured={i === featuredIndex}
+                    isCurrentTier={subscribed && i === subscriberTierIndex}
                     disabled={!isConnected}
                     onSubscribe={() => {
                       setSelectedTier({ name: tier.name, price: tier.price, index: i });
@@ -329,7 +335,11 @@ export default function CreatorPage() {
           tierPrice={selectedTier.price}
           tierIndex={selectedTier.index}
           isOpen={showSubscribe}
-          onClose={() => setShowSubscribe(false)}
+          onClose={() => {
+            setShowSubscribe(false);
+            setLocalSubscribed(true);
+            setLocalSubTierIndex(selectedTier?.index ?? -1);
+          }}
         />
       )}
     </div>

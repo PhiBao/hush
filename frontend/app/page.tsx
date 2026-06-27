@@ -277,8 +277,8 @@ export default function Home() {
                   <PostCard
                     key={post.id}
                     post={post}
-                    href={isSubbed ? `/${post.creator_address}/content` : `/${post.creator_address}`}
-                    unlocked={isSubbed && post.tier_index === 0}
+                    href={`/post/${post.id}`}
+                    unlocked={isSubbed}
                     tierName={post.tier_index > 0 ? `Tier ${post.tier_index + 1}` : undefined}
                   />
                 );

@@ -22,13 +22,22 @@ export function ZamaProvider({ children }: PropsWithChildren) {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
 
-  // SepoliaConfig lacks the `getChainId` function the relayer expects.
-  // Provide it so the relayer/ZamaSDK don't crash with `this[#l].getChainId`.
   const relayer = useMemo(
     () =>
       new RelayerWeb({
         ...SepoliaConfig,
         getChainId: async () => SepoliaConfig.chainId,
+        transports: {
+          [SepoliaConfig.chainId]: {
+            aclContractAddress: SepoliaConfig.aclContractAddress,
+            kmsContractAddress: SepoliaConfig.kmsContractAddress,
+            inputVerifierContractAddress: SepoliaConfig.inputVerifierContractAddress,
+            verifyingContractAddressDecryption: SepoliaConfig.verifyingContractAddressDecryption,
+            verifyingContractAddressInputVerification: SepoliaConfig.verifyingContractAddressInputVerification,
+            network: SepoliaConfig.network,
+            relayerUrl: SepoliaConfig.relayerUrl,
+          },
+        },
       } as never),
     []
   );

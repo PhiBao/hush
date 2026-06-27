@@ -165,9 +165,12 @@ export default function ContentPage() {
                   {posts.map((post) => (
                     <article key={post.id}>
                       <div className="flex items-start justify-between gap-3">
-                        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                        <Link
+                          href={`/post/${post.id}`}
+                          className="text-xl font-semibold tracking-tight text-foreground hover:text-ember-300 transition-colors"
+                        >
                           {post.title}
-                        </h2>
+                        </Link>
                         {post.tier_index > 0 && (
                           <span className="shrink-0 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                             {(tierList[post.tier_index] as { name: string })?.name || `Tier ${post.tier_index + 1}`}
