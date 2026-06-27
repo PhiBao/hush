@@ -22,6 +22,7 @@ import {
   CONFIDENTIAL_TOKEN_ABI,
   ERC20_ABI,
   formatTokenAmount,
+  parseTokenAmount,
 } from "@/lib/contract";
 import {
   Dialog,
@@ -115,8 +116,8 @@ export function SubscribeModal({
     query: { enabled: !!address },
   });
 
-  const paymentAmount = BigInt(tierPrice) + (tipInput ? BigInt(tipInput) : 0n);
-  const tipParsed = tipInput ? BigInt(tipInput) : 0n;
+  const tipParsed = tipInput ? parseTokenAmount(tipInput) : 0n;
+  const paymentAmount = BigInt(tierPrice) + tipParsed;
   const busy = step !== "idle" && step !== "done" && step !== "error";
   const stepIndex = ORDER.indexOf(step);
 
@@ -263,12 +264,12 @@ export function SubscribeModal({
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Private tip (optional)</label>
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
-                  <input
+                   <input
                     type="number"
                     min="0"
-                    step="1"
+                    step="0.01"
                     value={tipInput}
-                    onChange={(e) => setTipInput(e.target.value.replace(/[^0-9]/g, ""))}
+                    onChange={(e) => setTipInput(e.target.value)}
                     placeholder="0"
                     className="w-24 bg-transparent font-mono text-sm outline-none"
                   />
