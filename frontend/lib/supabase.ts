@@ -151,7 +151,9 @@ export async function getPostMeta(postId: number): Promise<Post | null> {
   return data as Post;
 }
 
-/** Client-side wrapper: calls the server API route to create a post (server verifies creator onchain). */
+/** Client-side wrapper: writes directly to Supabase via the public anon key.
+ *  The dashboard already verifies client-side that the connected wallet
+ *  is a registered creator before showing the form. */
 export async function createPostClient(
   creatorAddress: string,
   creatorName: string,
@@ -159,22 +161,32 @@ export async function createPostClient(
   content: string,
   tierIndex: number,
 ): Promise<Post | null> {
-  const res = await fetch("/api/posts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ creatorAddress, creatorName, title, content, tierIndex }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(err.error || `HTTP ${res.status}`);
+  const preview = content.slice(0, 160);
+  const { data, error } = await supabase
+    .from("posts")
+    .insert({
+      creator_address: creatorAddress.toLowerCase(),
+      creator_name: creatorName,
+      title: title.trim(),
+      preview,
+      content,
+      tier_index: tierIndex ?? 0,
+    })
+    .select()
+    .single();
+  if (error) {
+    console.error("Failed to create post:", error);
+    throw new Error(error.message);
   }
-  const data = await res.json();
-  return data.post as Post;
+  return data as Post;
 }
 
-/** Client-side wrapper: calls the server API route to delete a post. */
+/** Client-side wrapper: deletes a post via the public anon key. */
 export async function deletePostClient(id: number): Promise<boolean> {
-  const res = await fetch(`/api/posts/${id}`, { method: "DELETE" });
-  if (!res.ok) return false;
+  const { error } = await supabase.from("posts").delete().eq("id", id);
+  if (error) {
+    console.error("Failed to delete post:", error);
+    return false;
+  }
   return true;
 }

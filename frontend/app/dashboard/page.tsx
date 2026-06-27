@@ -97,8 +97,9 @@ export default function DashboardPage() {
       setShowNewPost(false);
       await loadPosts();
       toast.success("Post published");
-    } catch {
-      setPostError("Failed to create post. Make sure the posts table exists in Supabase.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setPostError(`Failed: ${msg}`);
     } finally {
       setSaving(false);
     }
