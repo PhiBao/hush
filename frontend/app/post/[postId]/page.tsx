@@ -28,11 +28,14 @@ export default function PostDetailPage() {
   const [post, setPost] = useState<GatedPost | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load post metadata (public fields).
+  // Step 1: load public metadata (no content column).
   useEffect(() => {
     const id = Number(postId);
-    if (!id) return;
-    getPostMeta(id).then((m) => setMeta(m));
+    if (!id) { setLoading(false); return; }
+    getPostMeta(id).then((m) => {
+      setMeta(m);
+      if (!m) setLoading(false);
+    });
   }, [postId]);
 
   const creatorAddr = (meta?.creator_address ?? ZERO) as `0x${string}`;
@@ -57,18 +60,15 @@ export default function PostDetailPage() {
   const postTier = meta?.tier_index ?? 0;
   const authorized = !!isSubscribed && postTier <= subscriberTier;
 
-  // Fetch full post from Supabase (public anon key, RLS allows SELECT).
+  // Step 2: only fetch full content when onchain authorization is confirmed.
   useEffect(() => {
-    const id = Number(postId);
-    if (!id) { setLoading(false); return; }
+    if (!authorized || !meta) return;
     setLoading(true);
-    (async () => {
-      const { data, error } = await supabase.from("posts").select("*").eq("id", id).single();
-      if (error) console.error("Failed to fetch post:", error.message);
-      setPost((data as GatedPost) || null);
-      setLoading(false);
-    })();
-  }, [postId]);
+    supabase.from("posts").select("*").eq("id", meta.id).single().then(
+      ({ data }) => { setPost(data as GatedPost || null); setLoading(false); },
+      () => setLoading(false)
+    );
+  }, [authorized, meta]);
 
   const displayName = meta?.creator_name || (creatorAddr !== ZERO
     ? `${creatorAddr.slice(0, 6)}...${creatorAddr.slice(-4)}`

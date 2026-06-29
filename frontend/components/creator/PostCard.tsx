@@ -37,6 +37,7 @@ export function PostCard({
 }: PostCardProps) {
   const name = creatorName || post.creator_name || shortAddr(post.creator_address);
   const preview = post.preview || (post.content ? post.content.slice(0, 160) : "");
+  const teaser = unlocked ? preview : "Subscribe to read this post.";
 
   return (
     <Link
@@ -66,7 +67,7 @@ export function PostCard({
       </h3>
 
       <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground line-clamp-2 max-w-[65ch]">
-        {preview || "Subscribe to read this post."}
+        {teaser}
       </p>
 
       <div className="mt-3 flex items-center gap-2">

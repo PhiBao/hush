@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import { useAccount, useReadContract } from "wagmi";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
 import Link from "next/link";
 import { ArrowRightIcon, KeyholeIcon } from "@phosphor-icons/react";
 import { HUSH_ABI, HUSH_CONTRACT_ADDRESS } from "@/lib/contract";
@@ -229,19 +228,14 @@ export default function CreatorPage() {
                             </>
                           ) : (
                             <div className="mt-3 space-y-3">
-                              <p className="text-sm leading-relaxed text-muted-foreground line-clamp-2 max-w-[65ch]">
-                                {previewText(post) || "Subscribe to read this post."}
-                              </p>
                               <div className="flex flex-wrap items-center gap-3">
                                 <span className="inline-flex items-center gap-1.5 text-xs text-ember-300">
                                   <KeyholeIcon weight="fill" className="h-3.5 w-3.5" />
                                   {isConnected
                                     ? `Subscribe to unlock ${tierName}`
-                                    : "Connect to subscribe"}
+                                    : "Connect your wallet to subscribe"}
                                 </span>
-                                {!isConnected ? (
-                                  <ConnectButton />
-                                ) : !subscribed ? (
+                                {isConnected && !subscribed ? (
                                   <Button
                                     size="sm"
                                     onClick={() => {
@@ -315,13 +309,6 @@ export default function CreatorPage() {
                 ))}
               </div>
             </section>
-          )}
-
-          {!isConnected && (
-            <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border bg-card/40 py-12 text-center">
-              <p className="text-sm text-muted-foreground">Connect your wallet to subscribe</p>
-              <ConnectButton />
-            </div>
           )}
 
           {/* Encrypted supporter poll (FHE.select + FHE.add voting) */}
